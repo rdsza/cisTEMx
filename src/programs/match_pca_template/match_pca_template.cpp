@@ -13,7 +13,7 @@
 #if defined(ENABLE_FastFFT) && defined(ENABLEGPU)
 #include "../../ext/FastFFT/include/FastFFT.h"
 #endif
-
+Image test;
 
 class AggregatedTemplateResult {
   public:
