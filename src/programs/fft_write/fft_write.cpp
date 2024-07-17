@@ -14,7 +14,7 @@ IMPLEMENT_APP(fft_write)
 
 void fft_write::DoInteractiveUserInput( ){
 
-    int new_z_size = 1;
+    //int new_z_size = 1;
 
     UserInput* my_input = new UserInput("fft_write", 1.0);
 
@@ -27,7 +27,7 @@ void fft_write::DoInteractiveUserInput( ){
     my_current_job.ManualSetArguments("tt", input_filename.c_str( ), output_filename.c_str( ));
 }
 
-bool fft::DoCalculation( ) {
+bool fft_write::DoCalculation( ) {
 
     std::string input_filename     = my_current_job.arguments[0].ReturnStringArgument( );
     std::string output_filename    = my_current_job.arguments[1].ReturnStringArgument( );
@@ -65,7 +65,7 @@ bool fft::DoCalculation( ) {
     if ( std > 0.0 ) {
         std = sqrt(std);
     }
-    
+
     my_output_file.SetDensityStatistics(my_distribution.GetMinimum( ), my_distribution.GetMaximum( ), my_distribution.GetSampleMean( ), std);
 
     my_output_file.SetPixelSize(pixel_size);
