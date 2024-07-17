@@ -15,28 +15,6 @@
 #endif
 Image test;
 
-class AggregatedTemplateResult {
-  public:
-    int   image_number;
-    int   number_of_received_results;
-    float total_number_of_ccs;
-
-    float* collated_data_array;
-    float* collated_mip_data;
-    float* collated_psi_data;
-    float* collated_theta_data;
-    float* collated_phi_data;
-    float* collated_defocus_data;
-    float* collated_pixel_size_data;
-    float* collated_pixel_sums;
-    float* collated_pixel_square_sums;
-    long*  collated_histogram_data;
-
-    AggregatedTemplateResult( );
-    ~AggregatedTemplateResult( );
-    void AddResult(float* result_array, long array_size, int result_number, int number_of_expected_results);
-};
-
 class
         MatchTemplateApp : public MyApp {
   public:
