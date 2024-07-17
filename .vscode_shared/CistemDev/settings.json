@@ -98,7 +98,10 @@
         "ios": "cpp",
         "target": "cpp",
         "typeindex": "cpp",
-        "__debug": "cpp"
+        "__debug": "cpp",
+        "charconv": "cpp",
+        "span": "cpp",
+        "format": "cpp"
     },
     "C_Cpp.clang_format_path": "/usr/bin/clang-format-14",
     "editor.formatOnSave": true,
