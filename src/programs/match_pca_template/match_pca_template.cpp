@@ -20,8 +20,8 @@ class
   public:
     bool DoCalculation( );
     void DoInteractiveUserInput( );
-    void MasterHandleProgramDefinedResult(float* result_array, long array_size, int result_number, int number_of_expected_results);
-    void ProgramSpecificInit( );
+    // void MasterHandleProgramDefinedResult(float* result_array, long array_size, int result_number, int number_of_expected_results);
+    // void ProgramSpecificInit( );
 
     // for master collation
 
@@ -58,13 +58,13 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     defocus1                  = my_input->GetFloatFromUser("Defocus1 (angstroms)", "Defocus1 for the input image", "10000", 0.0);
     defocus2                  = my_input->GetFloatFromUser("Defocus2 (angstroms)", "Defocus2 for the input image", "10000", 0.0);
     defocus_angle             = my_input->GetFloatFromUser("Defocus Angle (degrees)", "Defocus Angle for the input image", "0.0");
-    cc_output_file        = my_input->GetFilenameFromUser("Output cross correlation filename", "output_cc.mrc", false);
+    cc_output_file        = my_input->GetFilenameFromUser("Output cross correlation filename","", "output_cc.mrc", false);
     int first_search_position = 0; //let's try with zero
     int last_search_position  = 91; //maybe 92
     delete my_input;
 
     my_current_job.ManualSetArguments("ttfffii", input_search_images.ToUTF8( ).data( ), search_templates.ToUTF8( ).data( ),
-    defocus1, defocus2, defocus_angle, first_search_position, last_search_position, output_cc_file.ToUTF8( ).data( ));
+    defocus1, defocus2, defocus_angle, first_search_position, last_search_position, cc_output_file.ToUTF8( ).data( ));
 
 }
 
@@ -170,10 +170,11 @@ bool MatchTemplateApp::DoCalculation( ) {
     ProgressBar* my_progress;
 
     //Loop over ever search position
-
-    wxPrintf("\n\tFor image id %i\n", image_number_for_gui);
-    wxPrintf("Searching %i positions on the Euler sphere (first-last: %i-%i)\n", last_search_position - first_search_position, first_search_position, last_search_position);
-    wxPrintf("Searching %i rotations per position.\n", number_of_rotations);
+    //may have to change some of these because some of these variables are not used
+    // wxPrintf("\n\tFor image id %i\n", image_number_for_gui);
+    wxPrintf("\n\tFor image id %i\n", "00040_3.mrc");
+    // wxPrintf("Searching %i positions on the Euler sphere (first-last: %i-%i)\n", last_search_position - first_search_position, first_search_position, last_search_position);
+    // wxPrintf("Searching %i rotations per position.\n", number_of_rotations);
     wxPrintf("There are %li correlation positions total.\n\n", total_correlation_positions);
 
     wxPrintf("Performing Search...\n\n");
@@ -181,7 +182,8 @@ bool MatchTemplateApp::DoCalculation( ) {
     for ( int current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
         // make the projection filter, which will be CTF * whitening filter
         // if defocus step is zero, can we just get rid of the defocus_step and defocus_i?
-        input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
+        // input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
+        input_ctf.SetDefocus(defocus1, defocus2, deg_2_rad(defocus_angle));
         //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
         projection_filter.CalculateCTFImage(input_ctf);
         projection_filter.ApplyCurveFilter(&whitening_filter);
