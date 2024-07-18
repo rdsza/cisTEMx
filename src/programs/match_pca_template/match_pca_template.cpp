@@ -70,14 +70,15 @@ bool MatchTemplateApp::DoCalculation( ) {
     float spherical_aberration_mm          = 2.7f;
     float amplitude_contrast               = 0.07f;
     float padding                          = 1.0;
-    //what are these for?
-    float    pixel_size_search_range   = 0.1f;
-    float    pixel_size_step           = 0.02f;
+    //what are these for? 
+    // I don't think we need these
+    //float    pixel_size_search_range   = 0.1f;
+    //float    pixel_size_step           = 0.02f;
     Curve whitening_filter;
     Curve number_of_terms;
     float phase_shift;
-    float defocus_step = 0.0f;
-    float defocus_search_range = 0.0f;
+    //float defocus_step = 0.0f;
+    //float defocus_search_range = 0.0f;
     long pixel_counter;
     int current_search_position;
     int current_x;
@@ -102,20 +103,12 @@ bool MatchTemplateApp::DoCalculation( ) {
     input_search_image_file.OpenFile(input_search_images_filename.ToStdString( ), false);
     search_templates_file.OpenFile(search_templates_filename.ToStdString( ), false);
     input_image.ReadSlice(&input_search_image_file, 1);
+    //Get ctf object to use for calculating ctf
+    CTF input_ctf;
+    input_ctf.Init(voltage_kV, spherical_aberration_mm, amplitude_contrast, defocus1, defocus2, defocus_angle, 0.0, 0.0, 0.0, pixel_size, deg_2_rad(phase_shift));
     // do Template Match
     //Do we need to do the factorization? 
-
-    for ( int current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
-        // make the projection filter, which will be CTF * whitening filter
-        // if defocus step is zero, can we just get rid of the defocus_step and defocus_i?
-        input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
-        //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
-        
-        //Get ctf object to use for calculating ctf
-        CTF input_ctf;
-        input_ctf.Init(voltage_kV, spherical_aberration_mm, amplitude_contrast, defocus1, defocus2, defocus_angle, 0.0, 0.0, 0.0, pixel_size, deg_2_rad(phase_shift));
-        
-        //Allocate space
+    //Allocate space
     current_projection.Allocate(search_templates_file.ReturnXSize( ), search_templates_file.ReturnXSize( ), false);
     projection_filter.Allocate(search_templates_file.ReturnXSize( ), search_templates_file.ReturnXSize( ), false);
     template_reconstruction.Allocate(search_templates.logical_x_dimension, search_templates.logical_y_dimension, search_templates.logical_z_dimension, true);
@@ -130,7 +123,6 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     wxDateTime my_time_out;
     wxDateTime my_time_in;
-
     // remove outliers
     // This won't work for movie frames (13.0 is used in unblur) TODO use poisson stats
     input_image.ReplaceOutliersWithMean(5.0f);
@@ -151,52 +143,29 @@ bool MatchTemplateApp::DoCalculation( ) {
     //input_image.QuickAndDirtyWriteSlice("/tmp/white.mrc", 1);
     //exit(-1);
 
-    // count total searches (lazy)
-
-    int total_correlation_positions  = 0;
-    int current_correlation_position = 0;
-
-    // if running locally, search over all of them
-
-    if ( is_running_locally == true ) {
-        first_search_position = 0;
-        last_search_position  = global_euler_search.number_of_search_positions - 1;
-    }
-
-    // TODO unroll these loops and multiply the product.
-
-
-    if ( defocus_step <= 0.0 ) {
-        defocus_search_range = 0.0f;
-        defocus_step         = 100.0f;
-    }
-
-    if ( pixel_size_step <= 0.0f ) {
-        pixel_size_search_range = 0.0f;
-        pixel_size_step         = 0.02f;
-    }
-
-    int total_correlation_positions = 92;
+    int total_correlation_positions = last_search_position;
     int total_correlation_positions_per_thread = total_correlation_positions;
 
+    ProgressBar* my_progress;
 
-// all this is in a for loop at line 722 - 904 which is inside for loop 674-905
-//code at 674 - 680 and 722 - 728 should be included?
-// for ( size_i = -myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i <= myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i++ ) {
+    //Loop over ever search position
 
-//         //        template_reconstruction.CopyFrom(&input_reconstruction);
-//         input_reconstruction.ChangePixelSize(&template_reconstruction, (pixel_size + float(size_i) * pixel_size_step) / pixel_size, 0.001f, true);
-//         //    template_reconstruction.ForwardFFT();
-//         template_reconstruction.ZeroCentralPixel( );
-//         template_reconstruction.SwapRealSpaceQuadrants( );
+    wxPrintf("\n\tFor image id %i\n", image_number_for_gui);
+    wxPrintf("Searching %i positions on the Euler sphere (first-last: %i-%i)\n", last_search_position - first_search_position, first_search_position, last_search_position);
+    wxPrintf("Searching %i rotations per position.\n", number_of_rotations);
+    wxPrintf("There are %li correlation positions total.\n\n", total_correlation_positions);
 
-        // for ( defocus_i = -myroundint(float(defocus_search_range) / float(defocus_step)); defocus_i <= myroundint(float(defocus_search_range) / float(defocus_step)); defocus_i++ ) {
+    wxPrintf("Performing Search...\n\n");
 
-        //     // make the projection filter, which will be CTF * whitening filter
-        //     input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
-        //     //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
-        //     projection_filter.CalculateCTFImage(input_ctf);
-        //     projection_filter.ApplyCurveFilter(&whitening_filter);
+    for ( int current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
+        // make the projection filter, which will be CTF * whitening filter
+        // if defocus step is zero, can we just get rid of the defocus_step and defocus_i?
+        input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
+        //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
+        
+
+
+
 
         projection_filter.CalculateCTFImage(input_ctf);
         projection_filter.ApplyCurveFilter(&whitening_filter);
@@ -280,5 +249,5 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     //what about code 890 - 1040?
     // write out one single MIP
-    //is the mip just a single float value?
+    //is the mip just a single float value? MIP is an image max_intensity_projection object
 }
