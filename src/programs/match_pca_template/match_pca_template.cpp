@@ -25,7 +25,7 @@ class
 
     // for master collation
 
-    ArrayOfAggregatedTemplateResults aggregated_results;
+    // ArrayOfAggregatedTemplateResults aggregated_results;
 
     float GetMaxJobWaitTimeInSeconds( ) { return 360.0f; }
 
@@ -93,6 +93,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     Image padded_projection;
     Image projection_filter;
     Image correlation_pixel_sum_image;
+    Image max_intensity_projection;
     double* correlation_pixel_sum            = new double[input_image.real_memory_allocated];
     double* correlation_pixel_sum_of_squares = new double[input_image.real_memory_allocated];
     ZeroDoubleArray(correlation_pixel_sum, input_image.real_memory_allocated);
@@ -105,11 +106,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     // do Template Match
     //Do we need to do the factorization? 
 
-    for ( int current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
-        // make the projection filter, which will be CTF * whitening filter
-        // if defocus step is zero, can we just get rid of the defocus_step and defocus_i?
-        input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
-        //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
+    
         
         //Get ctf object to use for calculating ctf
         CTF input_ctf;
@@ -120,9 +117,11 @@ bool MatchTemplateApp::DoCalculation( ) {
     projection_filter.Allocate(search_templates_file.ReturnXSize( ), search_templates_file.ReturnXSize( ), false);
     template_reconstruction.Allocate(search_templates.logical_x_dimension, search_templates.logical_y_dimension, search_templates.logical_z_dimension, true);
     padded_reference.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    max_intensity_projection.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    max_intensity_projection.SetToConstant(-FLT_MAX);
     padded_reference.SetToConstant(0.0f);
     if ( padding != 1.0f )
-        padded_projection.Allocate(input_reconstruction_file.ReturnXSize( ) * padding, input_reconstruction_file.ReturnXSize( ) * padding, false);
+        padded_projection.Allocate(search_templates_file.ReturnXSize( ) * padding, search_templates_file.ReturnXSize( ) * padding, false);
 
     // I think we need all this 
     whitening_filter.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
@@ -153,17 +152,15 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     // count total searches (lazy)
 
-    int total_correlation_positions  = 0;
+
     int current_correlation_position = 0;
 
     // if running locally, search over all of them
 
     if ( is_running_locally == true ) {
         first_search_position = 0;
-        last_search_position  = global_euler_search.number_of_search_positions - 1;
+        last_search_position  = 91;
     }
-
-    // TODO unroll these loops and multiply the product.
 
 
     if ( defocus_step <= 0.0 ) {
@@ -198,8 +195,17 @@ bool MatchTemplateApp::DoCalculation( ) {
         //     projection_filter.CalculateCTFImage(input_ctf);
         //     projection_filter.ApplyCurveFilter(&whitening_filter);
 
+ for ( int current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
+        // make the projection filter, which will be CTF * whitening filter
+        // if defocus step is zero, can we just get rid of the defocus_step and defocus_i?
+
+        //input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
+        input_ctf.SetDefocus(defocus1 , defocus2, deg_2_rad(defocus_angle));
+        //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
         projection_filter.CalculateCTFImage(input_ctf);
         projection_filter.ApplyCurveFilter(&whitening_filter);
+        
+        
         if ( padding != 1.0f ) {
                         template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //changed to ReadSlice
                         padded_projection.SwapRealSpaceQuadrants( );
@@ -281,4 +287,5 @@ bool MatchTemplateApp::DoCalculation( ) {
     //what about code 890 - 1040?
     // write out one single MIP
     //is the mip just a single float value?
+    //what else do I need to write out - which variable holds the cross correlation?
 }

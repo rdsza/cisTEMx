@@ -317,6 +317,7 @@ bin_PROGRAMS =  cisTEM_job_control \
                 convert_eer_to_mrc \
                 azimuthal_average \
                 convertFT \
+                match_pca_template \
                 normalize_stack \
                 print_stack_statistics \
                 combine_stacks_by_star \
@@ -847,6 +848,11 @@ convertFT_SOURCES  = programs/convertFT/convertFT.cpp
 convertFT_CXXFLAGS = $(WX_CPPFLAGS_BASE)
 convertFT_CPPFLAGS = $(WX_CPPFLAGS_BASE)
 convertFT_LDADD    = libcore.a $(WX_LIBS_BASE)
+
+match_pca_template_SOURCES  = programs/match_pca_template/match_pca_template.cpp
+match_pca_template_CXXFLAGS = $(WX_CPPFLAGS_BASE)
+match_pca_template_CPPFLAGS = $(WX_CPPFLAGS_BASE)
+match_pca_template_LDADD    = libcore.a $(WX_LIBS_BASE)
 
 multiply_two_stacks_SOURCES  = programs/multiply_two_stacks/multiply_two_stacks.cpp
 multiply_two_stacks_CXXFLAGS = $(WX_CPPFLAGS_BASE)
