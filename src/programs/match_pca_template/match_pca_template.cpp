@@ -114,6 +114,8 @@ bool MatchTemplateApp::DoCalculation( ) {
     template_reconstruction.Allocate(search_templates.logical_x_dimension, search_templates.logical_y_dimension, search_templates.logical_z_dimension, true);
     padded_reference.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     padded_reference.SetToConstant(0.0f);
+    max_intensity_projection.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    max_intensity_projection.SetToConstant(-FLT_MAX);
     if ( padding != 1.0f )
         padded_projection.Allocate(input_reconstruction_file.ReturnXSize( ) * padding, input_reconstruction_file.ReturnXSize( ) * padding, false);
 
@@ -162,41 +164,35 @@ bool MatchTemplateApp::DoCalculation( ) {
         // if defocus step is zero, can we just get rid of the defocus_step and defocus_i?
         input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
         //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
-        
-
-
-
-
         projection_filter.CalculateCTFImage(input_ctf);
         projection_filter.ApplyCurveFilter(&whitening_filter);
         if ( padding != 1.0f ) {
-                        template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //changed to ReadSlice
-                        padded_projection.SwapRealSpaceQuadrants( );
-                        padded_projection.BackwardFFT( );
-                        padded_projection.ClipInto(&current_projection);
-                        current_projection.ForwardFFT( );
-                    }
-                    else {
-                        template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //  changed to ReadSlice
-                        current_projection.SwapRealSpaceQuadrants( );
-                    }
-                current_projection.MultiplyPixelWise(projection_filter);
+            template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //changed to ReadSlice
+            padded_projection.SwapRealSpaceQuadrants( );
+            padded_projection.BackwardFFT( );
+            padded_projection.ClipInto(&current_projection);
+            current_projection.ForwardFFT( );
+            }
+            else {
+                template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //  changed to ReadSlice
+                current_projection.SwapRealSpaceQuadrants( );
+                }
+        current_projection.MultiplyPixelWise(projection_filter);
+        current_projection.BackwardFFT( );
+        //current_projection.ReplaceOutliersWithMean(6.0f);
 
-                    current_projection.BackwardFFT( );
-                    //current_projection.ReplaceOutliersWithMean(6.0f);
+        current_projection.AddConstant(-current_projection.ReturnAverageOfRealValuesOnEdges( ));
 
-                    current_projection.AddConstant(-current_projection.ReturnAverageOfRealValuesOnEdges( ));
+        // We want a variance of 1 in the padded FFT. Scale the small SumOfSquares (which is already divided by n) and then re-divide by N.
+        float variance = current_projection.ReturnSumOfSquares( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels - powf(current_projection.ReturnAverageOfRealValues( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels, 2);
+        current_projection.DivideByConstant(sqrtf(variance));
+        current_projection.ClipIntoLargerRealSpace2D(&padded_reference);
 
-                    // We want a variance of 1 in the padded FFT. Scale the small SumOfSquares (which is already divided by n) and then re-divide by N.
-                    float variance = current_projection.ReturnSumOfSquares( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels - powf(current_projection.ReturnAverageOfRealValues( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels, 2);
-                    current_projection.DivideByConstant(sqrtf(variance));
-                    current_projection.ClipIntoLargerRealSpace2D(&padded_reference);
-
-                    // Note: The real space variance is set to 1.0 (for the padded size image) and that results in a variance of N in the FFT do to the scaling of the FFT,
-                    // but the FFT values are divided by 1/N so the variance becomes N / (N^2) = is 1/N
-                    padded_reference.ForwardFFT( );
-                    // Zeroing the central pixel is probably not doing anything useful...
-                    padded_reference.ZeroCentralPixel( );       
+        // Note: The real space variance is set to 1.0 (for the padded size image) and that results in a variance of N in the FFT do to the scaling of the FFT,
+        // but the FFT values are divided by 1/N so the variance becomes N / (N^2) = is 1/N
+        padded_reference.ForwardFFT( );
+        // Zeroing the central pixel is probably not doing anything useful...
+        padded_reference.ZeroCentralPixel( );       
 
 #ifdef MKL
                     // Use the MKL
@@ -206,38 +202,32 @@ bool MatchTemplateApp::DoCalculation( ) {
                           padded_reference.complex_values[pixel_counter] = conj(padded_reference.complex_values[pixel_counter]) * input_image.complex_values[pixel_counter];
                     }
 #endif
-// Note: the cross correlation will have variance 1/N (the product of variance of the two FFTs assuming the means are both zero and the distributions independent.)
-                    // Taking the inverse FFT scales this variance by N resulting in a MIP with variance 1
-                    padded_reference.BackwardFFT( );
-
-                    // update mip, and histogram..
-                    pixel_counter = 0;
-
-                    for ( current_y = 0; current_y < max_intensity_projection.logical_y_dimension; current_y++ ) {
-                        for ( current_x = 0; current_x < max_intensity_projection.logical_x_dimension; current_x++ ) {
-                            // first mip
-
-                            if ( padded_reference.real_values[pixel_counter] > max_intensity_projection.real_values[pixel_counter] ) {
-                                max_intensity_projection.real_values[pixel_counter] = padded_reference.real_values[pixel_counter];
-                                //can we store the x and y of this value?
-                            }
-
-                            pixel_counter++;
-                        }
-
-                        pixel_counter += padded_reference.padding_jump_value;
+        // Note: the cross correlation will have variance 1/N (the product of variance of the two FFTs assuming the means are both zero and the distributions independent.)
+        // Taking the inverse FFT scales this variance by N resulting in a MIP with variance 1
+        padded_reference.BackwardFFT( );
+        // update mip, and histogram..
+        pixel_counter = 0;
+        for ( current_y = 0; current_y < max_intensity_projection.logical_y_dimension; current_y++ ) {
+            for ( current_x = 0; current_x < max_intensity_projection.logical_x_dimension; current_x++ ) {
+                // first mip
+                if ( padded_reference.real_values[pixel_counter] > max_intensity_projection.real_values[pixel_counter] ) {
+                    max_intensity_projection.real_values[pixel_counter] = padded_reference.real_values[pixel_counter];
                     }
+                    pixel_counter++;
+            }
+            pixel_counter += padded_reference.padding_jump_value;
+            }
 
-                    // Write padded_reference to file as slices (92 slices) (imagesize_x,image_size_y,92)
+            // Write padded_reference to file as slices (92 slices) (imagesize_x,image_size_y,92)
 
-                    //                    correlation_pixel_sum.AddImage(&padded_reference);
-                    for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
-                        correlation_pixel_sum[pixel_counter] += padded_reference.real_values[pixel_counter];
-                    }
-                    padded_reference.SquareRealValues( );
-                    //                    correlation_pixel_sum_of_squares.AddImage(&padded_reference);
-                    for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
-                        correlation_pixel_sum_of_squares[pixel_counter] += padded_reference.real_values[pixel_counter];
+            //                    correlation_pixel_sum.AddImage(&padded_reference);
+            for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
+                correlation_pixel_sum[pixel_counter] += padded_reference.real_values[pixel_counter];
+                }
+                padded_reference.SquareRealValues( );
+                //                    correlation_pixel_sum_of_squares.AddImage(&padded_reference);
+                for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
+                    correlation_pixel_sum_of_squares[pixel_counter] += padded_reference.real_values[pixel_counter];
                     }
 
                     //max_intensity_projection.QuickAndDirtyWriteSlice("/tmp/mip.mrc", 1);
