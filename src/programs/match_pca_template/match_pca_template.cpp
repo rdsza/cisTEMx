@@ -35,14 +35,39 @@ class
 IMPLEMENT_APP(MatchTemplateApp)
 
 void MatchTemplateApp::DoInteractiveUserInput( ) {
+    UserInput* my_input = new UserInput("Perform Cross Correlations on image stack", 1.00);
+
     // get input
-    my_current_job.ManualSetArguments("ttffffffffffifffffbfftttttttttftiiiitttfbi", input_search_images.ToUTF8( ).data( ),
-    defocus1,defocus2,defocus_angle
+    wxString input_search_images      = my_input->GetFilenameFromUser("Input images to be searched", "", "input.mrc", false);
+    wxString search_templates         = my_input->GetFilenameFromUser("Input template stack", "", "input.mrc", false);
+    float defocus1                    = my_input->GetFloatFromUser("Defocus1 (angstroms)", "Defocus1 for the input image", "10000", 0.0);
+    float defocus2                    = my_input->GetFloatFromUser("Defocus2 (angstroms)", "Defocus2 for the input image", "10000", 0.0);
+    float defocus_angle               = my_input->GetFloatFromUser("Defocus Angle (degrees)", "Defocus Angle for the input image", "0.0");
+    int first_search_position = 1; //is it one or zero
+    int last_search_position = 91; //maybe 92
+    //padding?
+    //particle_radius_angstroms?
+    delete my_input;
+
+    my_current_job.ManualSetArguments("ttfffii", input_search_images.ToUTF8( ).data( ), search_templates.ToUTF8( ).data( ),
+    defocus1, defocus2, defocus_angle, first_search_position, last_search_position);
+  
+
 }
 
 bool MatchTemplateApp::DoCalculation( ) {
+    //Bring inputs over from input function
+    wxString input_search_images_filename  = my_current_job.arguments[0].ReturnStringArgument( );
+    wxString input_reconstruction_filename = my_current_job.arguments[1].ReturnStringArgument( );
+    float    defocus1                      = my_current_job.arguments[2].ReturnFloatArgument( );
+    float    defocus2                      = my_current_job.arguments[3].ReturnFloatArgument( );
+    float    defocus_angle                 = my_current_job.arguments[4].ReturnFloatArgument( );
+    int      first_search_position         = my_current_job.arguments[5].ReturnIntegerArgument( );
+    int      last_search_position          = my_current_job.arguments[6].ReturnIntegerArgument( );
+    
     // do Template Match
-    for ( current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
+    
+    for ( int current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
         // make the projection filter, which will be CTF * whitening filter
         input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
         //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
@@ -67,7 +92,7 @@ bool MatchTemplateApp::DoCalculation( ) {
                     current_projection.AddConstant(-current_projection.ReturnAverageOfRealValuesOnEdges( ));
 
                     // We want a variance of 1 in the padded FFT. Scale the small SumOfSquares (which is already divided by n) and then re-divide by N.
-                    variance = current_projection.ReturnSumOfSquares( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels - powf(current_projection.ReturnAverageOfRealValues( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels, 2);
+                    float variance = current_projection.ReturnSumOfSquares( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels - powf(current_projection.ReturnAverageOfRealValues( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels, 2);
                     current_projection.DivideByConstant(sqrtf(variance));
                     current_projection.ClipIntoLargerRealSpace2D(&padded_reference);
 
