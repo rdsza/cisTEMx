@@ -58,19 +58,21 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     defocus1                  = my_input->GetFloatFromUser("Defocus1 (angstroms)", "Defocus1 for the input image", "10000", 0.0);
     defocus2                  = my_input->GetFloatFromUser("Defocus2 (angstroms)", "Defocus2 for the input image", "10000", 0.0);
     defocus_angle             = my_input->GetFloatFromUser("Defocus Angle (degrees)", "Defocus Angle for the input image", "0.0");
+    cc_output_file        = my_input->GetFilenameFromUser("Output cross correlation filename", "output_cc.mrc", false);
     int first_search_position = 0; //let's try with zero
     int last_search_position  = 91; //maybe 92
     delete my_input;
 
     my_current_job.ManualSetArguments("ttfffii", input_search_images.ToUTF8( ).data( ), search_templates.ToUTF8( ).data( ),
-    defocus1, defocus2, defocus_angle, first_search_position, last_search_position);
-  
+    defocus1, defocus2, defocus_angle, first_search_position, last_search_position, output_cc_file.ToUTF8( ).data( ));
 
 }
 
 bool MatchTemplateApp::DoCalculation( ) {
     //ends at 1253 in other file
     //Bring inputs over from input function
+    wxDateTime start_time = wxDateTime::Now( );
+
     wxString input_search_images_filename  = my_current_job.arguments[0].ReturnStringArgument( );
     wxString search_templates_filename     = my_current_job.arguments[1].ReturnStringArgument( );
     float    defocus1                      = my_current_job.arguments[2].ReturnFloatArgument( );
@@ -78,6 +80,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     float    defocus_angle                 = my_current_job.arguments[4].ReturnFloatArgument( );
     int      first_search_position         = my_current_job.arguments[5].ReturnIntegerArgument( );
     int      last_search_position          = my_current_job.arguments[6].ReturnIntegerArgument( );
+    wxString cc_output_filename  = my_current_job.arguments[7].ReturnStringArgument( );
     float pixel_size                       = 1.5f;
     float voltage_kV                       = 300.0f;
     float spherical_aberration_mm          = 2.7f;
