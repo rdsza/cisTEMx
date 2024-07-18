@@ -35,18 +35,31 @@ class
 IMPLEMENT_APP(MatchTemplateApp)
 
 void MatchTemplateApp::DoInteractiveUserInput( ) {
+    wxString input_search_images;
+    wxString search_templates;
+
+    wxString cc_output_file; // cross correlation output file 
+
+    float pixel_size              = 1.0f;
+    float voltage_kV              = 300.0f;
+    float spherical_aberration_mm = 2.7f;
+    float amplitude_contrast      = 0.07f;
+    float defocus1                = 10000.0f;
+    float defocus2                = 10000.0f;
+
+    float defocus_angle;
+    float padding = 1.0;
+
     UserInput* my_input = new UserInput("Perform Cross Correlations on image stack", 1.00);
 
     // get input
-    wxString input_search_images      = my_input->GetFilenameFromUser("Input images to be searched", "", "input.mrc", false);
-    wxString search_templates         = my_input->GetFilenameFromUser("Input template stack", "", "input.mrc", false);
-    float defocus1                    = my_input->GetFloatFromUser("Defocus1 (angstroms)", "Defocus1 for the input image", "10000", 0.0);
-    float defocus2                    = my_input->GetFloatFromUser("Defocus2 (angstroms)", "Defocus2 for the input image", "10000", 0.0);
-    float defocus_angle               = my_input->GetFloatFromUser("Defocus Angle (degrees)", "Defocus Angle for the input image", "0.0");
-    int first_search_position = 1; //is it one or zero
-    int last_search_position = 91; //maybe 92
-    //padding?
-    //particle_radius_angstroms?
+    input_search_images       = my_input->GetFilenameFromUser("Input images to be searched", "", "input.mrc", false);
+    search_templates          = my_input->GetFilenameFromUser("Input template stack", "", "input.mrc", false);
+    defocus1                  = my_input->GetFloatFromUser("Defocus1 (angstroms)", "Defocus1 for the input image", "10000", 0.0);
+    defocus2                  = my_input->GetFloatFromUser("Defocus2 (angstroms)", "Defocus2 for the input image", "10000", 0.0);
+    defocus_angle             = my_input->GetFloatFromUser("Defocus Angle (degrees)", "Defocus Angle for the input image", "0.0");
+    int first_search_position = 0; //let's try with zero
+    int last_search_position  = 91; //maybe 92
     delete my_input;
 
     my_current_job.ManualSetArguments("ttfffii", input_search_images.ToUTF8( ).data( ), search_templates.ToUTF8( ).data( ),
@@ -70,14 +83,15 @@ bool MatchTemplateApp::DoCalculation( ) {
     float spherical_aberration_mm          = 2.7f;
     float amplitude_contrast               = 0.07f;
     float padding                          = 1.0;
-    //what are these for?
-    float    pixel_size_search_range   = 0.1f;
-    float    pixel_size_step           = 0.02f;
+    //what are these for? 
+    // I don't think we need these
+    //float    pixel_size_search_range   = 0.1f;
+    //float    pixel_size_step           = 0.02f;
     Curve whitening_filter;
     Curve number_of_terms;
     float phase_shift;
-    float defocus_step = 0.0f;
-    float defocus_search_range = 0.0f;
+    //float defocus_step = 0.0f;
+    //float defocus_search_range = 0.0f;
     long pixel_counter;
     int current_search_position;
     int current_x;
@@ -103,16 +117,12 @@ bool MatchTemplateApp::DoCalculation( ) {
     input_search_image_file.OpenFile(input_search_images_filename.ToStdString( ), false);
     search_templates_file.OpenFile(search_templates_filename.ToStdString( ), false);
     input_image.ReadSlice(&input_search_image_file, 1);
+    //Get ctf object to use for calculating ctf
+    CTF input_ctf;
+    input_ctf.Init(voltage_kV, spherical_aberration_mm, amplitude_contrast, defocus1, defocus2, defocus_angle, 0.0, 0.0, 0.0, pixel_size, deg_2_rad(phase_shift));
     // do Template Match
     //Do we need to do the factorization? 
-
-    
-        
-        //Get ctf object to use for calculating ctf
-        CTF input_ctf;
-        input_ctf.Init(voltage_kV, spherical_aberration_mm, amplitude_contrast, defocus1, defocus2, defocus_angle, 0.0, 0.0, 0.0, pixel_size, deg_2_rad(phase_shift));
-        
-        //Allocate space
+    //Allocate space
     current_projection.Allocate(search_templates_file.ReturnXSize( ), search_templates_file.ReturnXSize( ), false);
     projection_filter.Allocate(search_templates_file.ReturnXSize( ), search_templates_file.ReturnXSize( ), false);
     template_reconstruction.Allocate(search_templates.logical_x_dimension, search_templates.logical_y_dimension, search_templates.logical_z_dimension, true);
@@ -120,6 +130,8 @@ bool MatchTemplateApp::DoCalculation( ) {
     max_intensity_projection.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     max_intensity_projection.SetToConstant(-FLT_MAX);
     padded_reference.SetToConstant(0.0f);
+    max_intensity_projection.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    max_intensity_projection.SetToConstant(-FLT_MAX);
     if ( padding != 1.0f )
         padded_projection.Allocate(search_templates_file.ReturnXSize( ) * padding, search_templates_file.ReturnXSize( ) * padding, false);
 
@@ -129,7 +141,6 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     wxDateTime my_time_out;
     wxDateTime my_time_in;
-
     // remove outliers
     // This won't work for movie frames (13.0 is used in unblur) TODO use poisson stats
     input_image.ReplaceOutliersWithMean(5.0f);
@@ -150,90 +161,56 @@ bool MatchTemplateApp::DoCalculation( ) {
     //input_image.QuickAndDirtyWriteSlice("/tmp/white.mrc", 1);
     //exit(-1);
 
-    // count total searches (lazy)
-
-
-    int current_correlation_position = 0;
-
-    // if running locally, search over all of them
-
-    if ( is_running_locally == true ) {
-        first_search_position = 0;
-        last_search_position  = 91;
-    }
-
-
-    if ( defocus_step <= 0.0 ) {
-        defocus_search_range = 0.0f;
-        defocus_step         = 100.0f;
-    }
-
-    if ( pixel_size_step <= 0.0f ) {
-        pixel_size_search_range = 0.0f;
-        pixel_size_step         = 0.02f;
-    }
-
-    int total_correlation_positions = 92;
+    int total_correlation_positions = last_search_position;
     int total_correlation_positions_per_thread = total_correlation_positions;
 
+    ProgressBar* my_progress;
 
-// all this is in a for loop at line 722 - 904 which is inside for loop 674-905
-//code at 674 - 680 and 722 - 728 should be included?
-// for ( size_i = -myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i <= myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i++ ) {
+    //Loop over ever search position
 
-//         //        template_reconstruction.CopyFrom(&input_reconstruction);
-//         input_reconstruction.ChangePixelSize(&template_reconstruction, (pixel_size + float(size_i) * pixel_size_step) / pixel_size, 0.001f, true);
-//         //    template_reconstruction.ForwardFFT();
-//         template_reconstruction.ZeroCentralPixel( );
-//         template_reconstruction.SwapRealSpaceQuadrants( );
+    wxPrintf("\n\tFor image id %i\n", image_number_for_gui);
+    wxPrintf("Searching %i positions on the Euler sphere (first-last: %i-%i)\n", last_search_position - first_search_position, first_search_position, last_search_position);
+    wxPrintf("Searching %i rotations per position.\n", number_of_rotations);
+    wxPrintf("There are %li correlation positions total.\n\n", total_correlation_positions);
 
-        // for ( defocus_i = -myroundint(float(defocus_search_range) / float(defocus_step)); defocus_i <= myroundint(float(defocus_search_range) / float(defocus_step)); defocus_i++ ) {
+    wxPrintf("Performing Search...\n\n");
 
-        //     // make the projection filter, which will be CTF * whitening filter
-        //     input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
-        //     //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
-        //     projection_filter.CalculateCTFImage(input_ctf);
-        //     projection_filter.ApplyCurveFilter(&whitening_filter);
-
- for ( int current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
+    for ( int current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
         // make the projection filter, which will be CTF * whitening filter
         // if defocus step is zero, can we just get rid of the defocus_step and defocus_i?
-
-        //input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
-        input_ctf.SetDefocus(defocus1 , defocus2, deg_2_rad(defocus_angle));
+        input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
         //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
         projection_filter.CalculateCTFImage(input_ctf);
         projection_filter.ApplyCurveFilter(&whitening_filter);
         
         
         if ( padding != 1.0f ) {
-                        template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //changed to ReadSlice
-                        padded_projection.SwapRealSpaceQuadrants( );
-                        padded_projection.BackwardFFT( );
-                        padded_projection.ClipInto(&current_projection);
-                        current_projection.ForwardFFT( );
-                    }
-                    else {
-                        template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //  changed to ReadSlice
-                        current_projection.SwapRealSpaceQuadrants( );
-                    }
-                current_projection.MultiplyPixelWise(projection_filter);
+            template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //changed to ReadSlice
+            padded_projection.SwapRealSpaceQuadrants( );
+            padded_projection.BackwardFFT( );
+            padded_projection.ClipInto(&current_projection);
+            current_projection.ForwardFFT( );
+            }
+            else {
+                template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //  changed to ReadSlice
+                current_projection.SwapRealSpaceQuadrants( );
+                }
+        current_projection.MultiplyPixelWise(projection_filter);
+        current_projection.BackwardFFT( );
+        //current_projection.ReplaceOutliersWithMean(6.0f);
 
-                    current_projection.BackwardFFT( );
-                    //current_projection.ReplaceOutliersWithMean(6.0f);
+        current_projection.AddConstant(-current_projection.ReturnAverageOfRealValuesOnEdges( ));
 
-                    current_projection.AddConstant(-current_projection.ReturnAverageOfRealValuesOnEdges( ));
+        // We want a variance of 1 in the padded FFT. Scale the small SumOfSquares (which is already divided by n) and then re-divide by N.
+        float variance = current_projection.ReturnSumOfSquares( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels - powf(current_projection.ReturnAverageOfRealValues( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels, 2);
+        current_projection.DivideByConstant(sqrtf(variance));
+        current_projection.ClipIntoLargerRealSpace2D(&padded_reference);
 
-                    // We want a variance of 1 in the padded FFT. Scale the small SumOfSquares (which is already divided by n) and then re-divide by N.
-                    float variance = current_projection.ReturnSumOfSquares( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels - powf(current_projection.ReturnAverageOfRealValues( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels, 2);
-                    current_projection.DivideByConstant(sqrtf(variance));
-                    current_projection.ClipIntoLargerRealSpace2D(&padded_reference);
-
-                    // Note: The real space variance is set to 1.0 (for the padded size image) and that results in a variance of N in the FFT do to the scaling of the FFT,
-                    // but the FFT values are divided by 1/N so the variance becomes N / (N^2) = is 1/N
-                    padded_reference.ForwardFFT( );
-                    // Zeroing the central pixel is probably not doing anything useful...
-                    padded_reference.ZeroCentralPixel( );       
+        // Note: The real space variance is set to 1.0 (for the padded size image) and that results in a variance of N in the FFT do to the scaling of the FFT,
+        // but the FFT values are divided by 1/N so the variance becomes N / (N^2) = is 1/N
+        padded_reference.ForwardFFT( );
+        // Zeroing the central pixel is probably not doing anything useful...
+        padded_reference.ZeroCentralPixel( );       
 
 #ifdef MKL
                     // Use the MKL
@@ -243,38 +220,32 @@ bool MatchTemplateApp::DoCalculation( ) {
                           padded_reference.complex_values[pixel_counter] = conj(padded_reference.complex_values[pixel_counter]) * input_image.complex_values[pixel_counter];
                     }
 #endif
-// Note: the cross correlation will have variance 1/N (the product of variance of the two FFTs assuming the means are both zero and the distributions independent.)
-                    // Taking the inverse FFT scales this variance by N resulting in a MIP with variance 1
-                    padded_reference.BackwardFFT( );
-
-                    // update mip, and histogram..
-                    pixel_counter = 0;
-
-                    for ( current_y = 0; current_y < max_intensity_projection.logical_y_dimension; current_y++ ) {
-                        for ( current_x = 0; current_x < max_intensity_projection.logical_x_dimension; current_x++ ) {
-                            // first mip
-
-                            if ( padded_reference.real_values[pixel_counter] > max_intensity_projection.real_values[pixel_counter] ) {
-                                max_intensity_projection.real_values[pixel_counter] = padded_reference.real_values[pixel_counter];
-                                //can we store the x and y of this value?
-                            }
-
-                            pixel_counter++;
-                        }
-
-                        pixel_counter += padded_reference.padding_jump_value;
+        // Note: the cross correlation will have variance 1/N (the product of variance of the two FFTs assuming the means are both zero and the distributions independent.)
+        // Taking the inverse FFT scales this variance by N resulting in a MIP with variance 1
+        padded_reference.BackwardFFT( );
+        // update mip, and histogram..
+        pixel_counter = 0;
+        for ( current_y = 0; current_y < max_intensity_projection.logical_y_dimension; current_y++ ) {
+            for ( current_x = 0; current_x < max_intensity_projection.logical_x_dimension; current_x++ ) {
+                // first mip
+                if ( padded_reference.real_values[pixel_counter] > max_intensity_projection.real_values[pixel_counter] ) {
+                    max_intensity_projection.real_values[pixel_counter] = padded_reference.real_values[pixel_counter];
                     }
+                    pixel_counter++;
+            }
+            pixel_counter += padded_reference.padding_jump_value;
+            }
 
-                    // Write padded_reference to file as slices (92 slices) (imagesize_x,image_size_y,92)
+            // Write padded_reference to file as slices (92 slices) (imagesize_x,image_size_y,92)
 
-                    //                    correlation_pixel_sum.AddImage(&padded_reference);
-                    for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
-                        correlation_pixel_sum[pixel_counter] += padded_reference.real_values[pixel_counter];
-                    }
-                    padded_reference.SquareRealValues( );
-                    //                    correlation_pixel_sum_of_squares.AddImage(&padded_reference);
-                    for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
-                        correlation_pixel_sum_of_squares[pixel_counter] += padded_reference.real_values[pixel_counter];
+            //                    correlation_pixel_sum.AddImage(&padded_reference);
+            for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
+                correlation_pixel_sum[pixel_counter] += padded_reference.real_values[pixel_counter];
+                }
+                padded_reference.SquareRealValues( );
+                //                    correlation_pixel_sum_of_squares.AddImage(&padded_reference);
+                for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
+                    correlation_pixel_sum_of_squares[pixel_counter] += padded_reference.real_values[pixel_counter];
                     }
 
                     //max_intensity_projection.QuickAndDirtyWriteSlice("/tmp/mip.mrc", 1);
@@ -286,6 +257,5 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     //what about code 890 - 1040?
     // write out one single MIP
-    //is the mip just a single float value?
-    //what else do I need to write out - which variable holds the cross correlation?
+    //is the mip just a single float value? MIP is an image max_intensity_projection object
 }
