@@ -35,18 +35,31 @@ class
 IMPLEMENT_APP(MatchTemplateApp)
 
 void MatchTemplateApp::DoInteractiveUserInput( ) {
+    wxString input_search_images;
+    wxString search_templates;
+
+    wxString cc_output_file; // cross correlation output file 
+
+    float pixel_size              = 1.0f;
+    float voltage_kV              = 300.0f;
+    float spherical_aberration_mm = 2.7f;
+    float amplitude_contrast      = 0.07f;
+    float defocus1                = 10000.0f;
+    float defocus2                = 10000.0f;
+
+    float defocus_angle;
+    float padding = 1.0;
+
     UserInput* my_input = new UserInput("Perform Cross Correlations on image stack", 1.00);
 
     // get input
-    wxString input_search_images      = my_input->GetFilenameFromUser("Input images to be searched", "", "input.mrc", false);
-    wxString search_templates         = my_input->GetFilenameFromUser("Input template stack", "", "input.mrc", false);
-    float defocus1                    = my_input->GetFloatFromUser("Defocus1 (angstroms)", "Defocus1 for the input image", "10000", 0.0);
-    float defocus2                    = my_input->GetFloatFromUser("Defocus2 (angstroms)", "Defocus2 for the input image", "10000", 0.0);
-    float defocus_angle               = my_input->GetFloatFromUser("Defocus Angle (degrees)", "Defocus Angle for the input image", "0.0");
-    int first_search_position = 1; //is it one or zero
-    int last_search_position = 91; //maybe 92
-    //padding?
-    //particle_radius_angstroms?
+    input_search_images       = my_input->GetFilenameFromUser("Input images to be searched", "", "input.mrc", false);
+    search_templates          = my_input->GetFilenameFromUser("Input template stack", "", "input.mrc", false);
+    defocus1                  = my_input->GetFloatFromUser("Defocus1 (angstroms)", "Defocus1 for the input image", "10000", 0.0);
+    defocus2                  = my_input->GetFloatFromUser("Defocus2 (angstroms)", "Defocus2 for the input image", "10000", 0.0);
+    defocus_angle             = my_input->GetFloatFromUser("Defocus Angle (degrees)", "Defocus Angle for the input image", "0.0");
+    int first_search_position = 0; //let's try with zero
+    int last_search_position  = 91; //maybe 92
     delete my_input;
 
     my_current_job.ManualSetArguments("ttfffii", input_search_images.ToUTF8( ).data( ), search_templates.ToUTF8( ).data( ),
