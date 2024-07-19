@@ -110,7 +110,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     Image padded_projection;
     Image projection_filter;
     Image correlation_pixel_sum_image;
-    Image max_intensity_projection;
+    // Image max_intensity_projection;
     Image cc_output;
     double* correlation_pixel_sum            = new double[input_image.real_memory_allocated];
     double* correlation_pixel_sum_of_squares = new double[input_image.real_memory_allocated];
@@ -131,11 +131,9 @@ bool MatchTemplateApp::DoCalculation( ) {
     projection_filter.Allocate(search_templates_file.ReturnXSize( ), search_templates_file.ReturnXSize( ), false);
     template_reconstruction.Allocate(search_templates.logical_x_dimension, search_templates.logical_y_dimension, search_templates.logical_z_dimension, true);
     padded_reference.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
-    max_intensity_projection.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
-    max_intensity_projection.SetToConstant(-FLT_MAX);
     padded_reference.SetToConstant(0.0f);
-    max_intensity_projection.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
-    max_intensity_projection.SetToConstant(-FLT_MAX);
+    // max_intensity_projection.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    // max_intensity_projection.SetToConstant(-FLT_MAX);
     if ( padding != 1.0f )
         padded_projection.Allocate(search_templates_file.ReturnXSize( ) * padding, search_templates_file.ReturnXSize( ) * padding, false);
     cc_output.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
@@ -181,15 +179,16 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     wxPrintf("Performing Search...\n\n");
 
-    for ( int current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
-        // make the projection filter, which will be CTF * whitening filter
-        // if defocus step is zero, can we just get rid of the defocus_step and defocus_i?
-        // input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
         input_ctf.SetDefocus(defocus1, defocus2, deg_2_rad(defocus_angle));
         //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
         projection_filter.CalculateCTFImage(input_ctf);
         projection_filter.ApplyCurveFilter(&whitening_filter);
         
+    for ( int current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
+        // make the projection filter, which will be CTF * whitening filter
+        // if defocus step is zero, can we just get rid of the defocus_step and defocus_i?
+        // input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
+ 
         
         if ( padding != 1.0f ) {
             template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //changed to ReadSlice
@@ -232,39 +231,42 @@ bool MatchTemplateApp::DoCalculation( ) {
         padded_reference.BackwardFFT( );
         // update mip, and histogram..
         pixel_counter = 0;
-        for ( current_y = 0; current_y < max_intensity_projection.logical_y_dimension; current_y++ ) {
-            for ( current_x = 0; current_x < max_intensity_projection.logical_x_dimension; current_x++ ) {
+        for ( current_y = 0; current_y < cc_output.logical_y_dimension; current_y++ ) {
+            for ( current_x = 0; current_x < cc_output.logical_x_dimension; current_x++ ) {
                 // first mip
-                if ( padded_reference.real_values[pixel_counter] > max_intensity_projection.real_values[pixel_counter] ) {
-                    max_intensity_projection.real_values[pixel_counter] = padded_reference.real_values[pixel_counter];
-                    }
+
+                    cc_output.real_values[pixel_counter] = padded_reference.real_values[pixel_counter];
+                    
                     pixel_counter++;
             }
+
             pixel_counter += padded_reference.padding_jump_value;
             }
+            cc_output.QuickAndDirtyWriteSlice(cc_output_filename.ToStdString( ), current_search_position + 1);
 
             // Write padded_reference to file as slices (92 slices) (imagesize_x,image_size_y,92)
 
-            //                    correlation_pixel_sum.AddImage(&padded_reference);
-            for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
-                correlation_pixel_sum[pixel_counter] += padded_reference.real_values[pixel_counter];
-                //I am not sure about the slice to read value
-                cc_output.WriteSlice(padded_reference.real_values[pixel_counter], pixel_counter);
-                }
-                padded_reference.SquareRealValues( );
-                //                    correlation_pixel_sum_of_squares.AddImage(&padded_reference);
-                for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
-                    correlation_pixel_sum_of_squares[pixel_counter] += padded_reference.real_values[pixel_counter];
-                    }
+    //         //                    correlation_pixel_sum.AddImage(&padded_reference);
+    //         for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
+    //             correlation_pixel_sum[pixel_counter] += padded_reference.real_values[pixel_counter];
+    //             //I am not sure about the slice to read value
+    //             cc_output.WriteSlice(padded_reference.real_values[pixel_counter], pixel_counter);
+    //             }
+    //             padded_reference.SquareRealValues( );
+    //             //                    correlation_pixel_sum_of_squares.AddImage(&padded_reference);
+    //             for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
+    //                 correlation_pixel_sum_of_squares[pixel_counter] += padded_reference.real_values[pixel_counter];
+    //                 }
 
-                    //max_intensity_projection.QuickAndDirtyWriteSlice("/tmp/mip.mrc", 1);
+    //                 //max_intensity_projection.QuickAndDirtyWriteSlice("/tmp/mip.mrc", 1);
 
-                    current_projection.is_in_real_space = false;
-                    padded_reference.is_in_real_space   = true;
+    //                 current_projection.is_in_real_space = false;
+    //                 padded_reference.is_in_real_space   = true;
 
-    }
+    // }
 
     //what about code 890 - 1040?
     // write out one single MIP
     //is the mip just a single float value? MIP is an image max_intensity_projection object
+}
 }
