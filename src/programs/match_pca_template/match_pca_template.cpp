@@ -111,6 +111,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     Image projection_filter;
     Image correlation_pixel_sum_image;
     Image max_intensity_projection;
+    Image cc_output;
     double* correlation_pixel_sum            = new double[input_image.real_memory_allocated];
     double* correlation_pixel_sum_of_squares = new double[input_image.real_memory_allocated];
     ZeroDoubleArray(correlation_pixel_sum, input_image.real_memory_allocated);
@@ -137,6 +138,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     max_intensity_projection.SetToConstant(-FLT_MAX);
     if ( padding != 1.0f )
         padded_projection.Allocate(search_templates_file.ReturnXSize( ) * padding, search_templates_file.ReturnXSize( ) * padding, false);
+    cc_output.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
 
     // I think we need all this 
     whitening_filter.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
@@ -246,6 +248,8 @@ bool MatchTemplateApp::DoCalculation( ) {
             //                    correlation_pixel_sum.AddImage(&padded_reference);
             for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
                 correlation_pixel_sum[pixel_counter] += padded_reference.real_values[pixel_counter];
+                //I am not sure about the slice to read value
+                cc_output.WriteSlice(padded_reference.real_values[pixel_counter], pixel_counter);
                 }
                 padded_reference.SquareRealValues( );
                 //                    correlation_pixel_sum_of_squares.AddImage(&padded_reference);
