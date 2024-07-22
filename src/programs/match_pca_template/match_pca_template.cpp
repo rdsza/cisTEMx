@@ -361,6 +361,7 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
 
         //     pixel_counter += padded_reference.padding_jump_value;
         //     }
+            padded_reference.Resize(original_input_image_x, original_input_image_y, 1);
             padded_reference.WriteSlice(&cc_output, current_search_position);
             //cc_output.QuickAndDirtyWriteSlice(cc_output_file.ToStdString( ), current_search_position);
 
