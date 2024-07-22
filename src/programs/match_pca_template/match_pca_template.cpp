@@ -78,7 +78,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 bool MatchTemplateApp::DoCalculation( ) {
     //ends at 1253 in other file
     //Bring inputs over from input function
-    wxPrintf("can I print?")
+    wxPrintf("can I print?");
     wxDateTime start_time = wxDateTime::Now( );
 
     // wxString input_search_images_filename  = my_current_job.arguments[0].ReturnStringArgument( );
@@ -96,13 +96,13 @@ bool MatchTemplateApp::DoCalculation( ) {
     float defocus_angle             = -4.5;
    
 
-    int first_search_position = 0; //let's try with zero
-    int last_search_position  = 91; //maybe 92
+    int first_search_position = 1; //let's try with zero
+    int last_search_position  = 92; //maybe 92
     float pixel_size                       = 1.5f;
     float voltage_kV                       = 300.0f;
     float spherical_aberration_mm          = 2.7f;
     float amplitude_contrast               = 0.07f;
-    float padding                          = 1.0;
+    float padding                          = 1.0f;
     //what are these for? 
     // I don't think we need these
     //float    pixel_size_search_range   = 0.1f;
@@ -224,10 +224,10 @@ bool MatchTemplateApp::DoCalculation( ) {
     // do Template Match
     //Do we need to do the factorization? 
     //Allocate space
-    std::cout << "0" << std::endl;
+    
     current_projection.Allocate(search_templates_file.ReturnXSize( ), search_templates_file.ReturnXSize( ), false);
     projection_filter.Allocate(search_templates_file.ReturnXSize( ), search_templates_file.ReturnXSize( ), false);
-    template_reconstruction.Allocate(search_templates.logical_x_dimension, search_templates.logical_y_dimension, search_templates.logical_z_dimension, true);
+    template_reconstruction.Allocate(search_templates.logical_x_dimension, search_templates.logical_y_dimension, 1, true);
     padded_reference.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     padded_reference.SetToConstant(0.0f);
     // max_intensity_projection.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
@@ -272,23 +272,25 @@ bool MatchTemplateApp::DoCalculation( ) {
     //Loop over ever search position
     //may have to change some of these because some of these variables are not used
     // wxPrintf("\n\tFor image id %i\n", image_number_for_gui);
-    wxPrintf("\n\tFor image id %i\n", "00040_3.mrc");
+    // wxPrintf("\n\tFor image id %i\n", "00040_3.mrc");
     // wxPrintf("Searching %i positions on the Euler sphere (first-last: %i-%i)\n", last_search_position - first_search_position, first_search_position, last_search_position);
     // wxPrintf("Searching %i rotations per position.\n", number_of_rotations);
     wxPrintf("There are %li correlation positions total.\n\n", total_correlation_positions);
 
     wxPrintf("Performing Search...\n\n");
-        search_templates.ChangePixelSize(&template_reconstruction, (1.5, 0.001f, true);
+        
                //    template_reconstruction.ForwardFFT();
-        template_reconstruction.ZeroCentralPixel( );
-        template_reconstruction.SwapRealSpaceQuadrants( );
+    
 
         input_ctf.SetDefocus(defocus1, defocus2, deg_2_rad(defocus_angle));
         //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
         projection_filter.CalculateCTFImage(input_ctf);
         projection_filter.ApplyCurveFilter(&whitening_filter);
-        
-
+      
+        // search_templates.ChangePixelSize(&template_reconstruction, 1.5, 0.001f, true);
+        template_reconstruction.ZeroCentralPixel( );
+        template_reconstruction.SwapRealSpaceQuadrants( );
+  wxPrintf("There are %i xs, %i ys, %i zs \n", template_reconstruction.logical_x_dimension, template_reconstruction.logical_y_dimension, template_reconstruction.logical_z_dimension);
         
 
 
@@ -296,8 +298,10 @@ bool MatchTemplateApp::DoCalculation( ) {
         // make the projection filter, which will be CTF * whitening filter
         // if defocus step is zero, can we just get rid of the defocus_step and defocus_i?
         // input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
-        wxPrintf("here ");
-        wxPrintf(&search_templates_file);
+        // wxPrintf("here ");
+        // wxPrintf(&search_templates_file);
+          //wxPrintf("There are %i xs, %i ys, %i zs \n", template_reconstruction.logical_x_dimension, template_reconstruction.logical_y_dimension, template_reconstruction.logical_z_dimension);
+
         if ( padding != 1.0f ) {
             
             template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //changed to ReadSlice
@@ -307,7 +311,7 @@ bool MatchTemplateApp::DoCalculation( ) {
             current_projection.ForwardFFT( );
             }
             else {
-                
+                 // wxPrintf("There are %i xs, %i ys, %i zs \n", template_reconstruction.logical_x_dimension, template_reconstruction.logical_y_dimension, template_reconstruction.logical_z_dimension);
                 template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //  changed to ReadSlice
                 current_projection.SwapRealSpaceQuadrants( );
                 }
@@ -378,5 +382,6 @@ bool MatchTemplateApp::DoCalculation( ) {
     //what about code 890 - 1040?
     // write out one single MIP
     //is the mip just a single float value? MIP is an image max_intensity_projection object
+    return true;
 }
 }
