@@ -1,5 +1,5 @@
 #include <cistem_config.h>
-
+#include <iostream>
 #ifdef ENABLEGPU
 #include "../../gpu/gpu_core_headers.h"
 #include "../../gpu/DeviceManager.h"
@@ -18,8 +18,10 @@
 class
         MatchTemplateApp : public MyApp {
   public:
-    bool DoCalculation( );
+    
     void DoInteractiveUserInput( );
+    bool DoCalculation( );
+    
     // void MasterHandleProgramDefinedResult(float* result_array, long array_size, int result_number, int number_of_expected_results);
     // void ProgramSpecificInit( );
 
@@ -53,34 +55,51 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     UserInput* my_input = new UserInput("Perform Cross Correlations on image stack", 1.00);
 
     // get input
-    input_search_images       = my_input->GetFilenameFromUser("Input images to be searched", "", "input.mrc", false);
-    search_templates          = my_input->GetFilenameFromUser("Input template stack", "", "input.mrc", false);
-    defocus1                  = my_input->GetFloatFromUser("Defocus1 (angstroms)", "Defocus1 for the input image", "10000", 0.0);
-    defocus2                  = my_input->GetFloatFromUser("Defocus2 (angstroms)", "Defocus2 for the input image", "10000", 0.0);
-    defocus_angle             = my_input->GetFloatFromUser("Defocus Angle (degrees)", "Defocus Angle for the input image", "0.0");
+    // input_search_images       = my_input->GetFilenameFromUser("Input images to be searched", "", "input.mrc", false);
+    // search_templates          = my_input->GetFilenameFromUser("Input template stack", "", "input.mrc", false);
+    // defocus1                  = my_input->GetFloatFromUser("Defocus1 (angstroms)", "Defocus1 for the input image", "10000", 0.0);
+    // defocus2                  = my_input->GetFloatFromUser("Defocus2 (angstroms)", "Defocus2 for the input image", "10000", 0.0);
+    // defocus_angle             = my_input->GetFloatFromUser("Defocus Angle (degrees)", "Defocus Angle for the input image", "0.0");
+    input_search_images       = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/00040_3_0.mrc";
+    search_templates          = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/1.5_psi_92_peaks.mrc";
+    defocus1                  = 13850;
+    defocus2                  = 13272;
+    defocus_angle             = -4.5;
     cc_output_file        = my_input->GetFilenameFromUser("Output cross correlation filename","", "output_cc.mrc", false);
-    int first_search_position = 0; //let's try with zero
-    int last_search_position  = 91; //maybe 92
+    // int first_search_position = 0; //let's try with zero
+    // int last_search_position  = 91; //maybe 92
     delete my_input;
 
-    my_current_job.ManualSetArguments("ttfffii", input_search_images.ToUTF8( ).data( ), search_templates.ToUTF8( ).data( ),
-    defocus1, defocus2, defocus_angle, first_search_position, last_search_position, cc_output_file.ToUTF8( ).data( ));
+    // my_current_job.ManualSetArguments("ttfffiit", input_search_images.ToUTF8( ).data( ), search_templates.ToUTF8( ).data( ),
+    // defocus1, defocus2, defocus_angle, first_search_position, last_search_position, cc_output_file.ToUTF8( ).data( ));
+    my_current_job.ManualSetArguments("t", cc_output_file.ToUTF8( ).data( ));
 
+    std::cout << "please bro"; 
 }
 
 bool MatchTemplateApp::DoCalculation( ) {
     //ends at 1253 in other file
     //Bring inputs over from input function
+    std::cout << "4" << std::endl;
     wxDateTime start_time = wxDateTime::Now( );
 
-    wxString input_search_images_filename  = my_current_job.arguments[0].ReturnStringArgument( );
-    wxString search_templates_filename     = my_current_job.arguments[1].ReturnStringArgument( );
-    float    defocus1                      = my_current_job.arguments[2].ReturnFloatArgument( );
-    float    defocus2                      = my_current_job.arguments[3].ReturnFloatArgument( );
-    float    defocus_angle                 = my_current_job.arguments[4].ReturnFloatArgument( );
-    int      first_search_position         = my_current_job.arguments[5].ReturnIntegerArgument( );
-    int      last_search_position          = my_current_job.arguments[6].ReturnIntegerArgument( );
-    wxString cc_output_filename  = my_current_job.arguments[7].ReturnStringArgument( );
+    // wxString input_search_images_filename  = my_current_job.arguments[0].ReturnStringArgument( );
+    // wxString search_templates_filename     = my_current_job.arguments[1].ReturnStringArgument( );
+    // float    defocus1                      = my_current_job.arguments[2].ReturnFloatArgument( );
+    // float    defocus2                      = my_current_job.arguments[3].ReturnFloatArgument( );
+    // float    defocus_angle                 = my_current_job.arguments[4].ReturnFloatArgument( );
+    // int      first_search_position         = my_current_job.arguments[5].ReturnIntegerArgument( );
+    // int      last_search_position          = my_current_job.arguments[6].ReturnIntegerArgument( );
+    wxString cc_output_filename  = my_current_job.arguments[0].ReturnStringArgument( );
+    wxString input_search_images_filename       = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/00040_3_0.mrc";
+    wxString search_templates_filename          = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/1.5_psi_92_peaks.mrc";
+    float defocus1                  = 13850;
+    float defocus2                  = 13272;
+    float defocus_angle             = -4.5;
+   
+
+    int first_search_position = 0; //let's try with zero
+    int last_search_position  = 91; //maybe 92
     float pixel_size                       = 1.5f;
     float voltage_kV                       = 300.0f;
     float spherical_aberration_mm          = 2.7f;
@@ -112,11 +131,11 @@ bool MatchTemplateApp::DoCalculation( ) {
     Image correlation_pixel_sum_image;
     // Image max_intensity_projection;
     Image cc_output;
-    double* correlation_pixel_sum            = new double[input_image.real_memory_allocated];
-    double* correlation_pixel_sum_of_squares = new double[input_image.real_memory_allocated];
-    ZeroDoubleArray(correlation_pixel_sum, input_image.real_memory_allocated);
-    ZeroDoubleArray(correlation_pixel_sum_of_squares, input_image.real_memory_allocated);
-
+    // double* correlation_pixel_sum            = new double[input_image.real_memory_allocated];
+    // double* correlation_pixel_sum_of_squares = new double[input_image.real_memory_allocated];
+    // ZeroDoubleArray(correlation_pixel_sum, input_image.real_memory_allocated);
+    // ZeroDoubleArray(correlation_pixel_sum_of_squares, input_image.real_memory_allocated);
+    std::cout << "1" << std::endl;
     
     input_search_image_file.OpenFile(input_search_images_filename.ToStdString( ), false);
     search_templates_file.OpenFile(search_templates_filename.ToStdString( ), false);
@@ -127,6 +146,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     // do Template Match
     //Do we need to do the factorization? 
     //Allocate space
+    std::cout << "0" << std::endl;
     current_projection.Allocate(search_templates_file.ReturnXSize( ), search_templates_file.ReturnXSize( ), false);
     projection_filter.Allocate(search_templates_file.ReturnXSize( ), search_templates_file.ReturnXSize( ), false);
     template_reconstruction.Allocate(search_templates.logical_x_dimension, search_templates.logical_y_dimension, search_templates.logical_z_dimension, true);
@@ -142,6 +162,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     whitening_filter.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
     number_of_terms.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
 
+    std::cout << "1" << std::endl;
     wxDateTime my_time_out;
     wxDateTime my_time_in;
     // remove outliers
@@ -168,7 +189,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     int total_correlation_positions_per_thread = total_correlation_positions;
 
     ProgressBar* my_progress;
-
+    std::cout << "2" << std::endl;
     //Loop over ever search position
     //may have to change some of these because some of these variables are not used
     // wxPrintf("\n\tFor image id %i\n", image_number_for_gui);
@@ -183,7 +204,7 @@ bool MatchTemplateApp::DoCalculation( ) {
         //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
         projection_filter.CalculateCTFImage(input_ctf);
         projection_filter.ApplyCurveFilter(&whitening_filter);
-        
+        std::cout << "3" << std::endl;
     for ( int current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
         // make the projection filter, which will be CTF * whitening filter
         // if defocus step is zero, can we just get rid of the defocus_step and defocus_i?
@@ -217,7 +238,7 @@ bool MatchTemplateApp::DoCalculation( ) {
         padded_reference.ForwardFFT( );
         // Zeroing the central pixel is probably not doing anything useful...
         padded_reference.ZeroCentralPixel( );       
-
+std::cout << "4" << std::endl;
 #ifdef MKL
                     // Use the MKL
                     vmcMulByConj(padded_reference.real_memory_allocated / 2, reinterpret_cast<MKL_Complex8*>(input_image.complex_values), reinterpret_cast<MKL_Complex8*>(padded_reference.complex_values), reinterpret_cast<MKL_Complex8*>(padded_reference.complex_values), VML_EP | VML_FTZDAZ_ON | VML_ERRMODE_IGNORE);
