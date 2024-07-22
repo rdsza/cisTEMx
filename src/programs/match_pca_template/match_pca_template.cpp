@@ -73,14 +73,12 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     // my_current_job.ManualSetArguments("ttfffiit", input_search_images.ToUTF8( ).data( ), search_templates.ToUTF8( ).data( ),
     // defocus1, defocus2, defocus_angle, first_search_position, last_search_position, cc_output_file.ToUTF8( ).data( ));
     my_current_job.ManualSetArguments("t", cc_output_file.ToUTF8( ).data( ));
-
-    std::cout << "please bro"; 
 }
 
 bool MatchTemplateApp::DoCalculation( ) {
     //ends at 1253 in other file
     //Bring inputs over from input function
-    std::cout << "4" << std::endl;
+    wxPrintf("can I print?")
     wxDateTime start_time = wxDateTime::Now( );
 
     // wxString input_search_images_filename  = my_current_job.arguments[0].ReturnStringArgument( );
@@ -135,11 +133,91 @@ bool MatchTemplateApp::DoCalculation( ) {
     // double* correlation_pixel_sum_of_squares = new double[input_image.real_memory_allocated];
     // ZeroDoubleArray(correlation_pixel_sum, input_image.real_memory_allocated);
     // ZeroDoubleArray(correlation_pixel_sum_of_squares, input_image.real_memory_allocated);
-    std::cout << "1" << std::endl;
+    
     
     input_search_image_file.OpenFile(input_search_images_filename.ToStdString( ), false);
     search_templates_file.OpenFile(search_templates_filename.ToStdString( ), false);
     input_image.ReadSlice(&input_search_image_file, 1);
+
+
+
+
+ // Resize input image to be factorizable by small numbers
+    int factorizable_x;
+    int factorizable_y;
+    int factor_result_pos;
+    int factor_result_neg;
+    long   original_input_image_x;
+    long   original_input_image_y;
+    original_input_image_x = input_image.logical_x_dimension;
+    original_input_image_y = input_image.logical_y_dimension;
+    factorizable_x         = input_image.logical_x_dimension;
+    factorizable_y         = input_image.logical_y_dimension;
+    int i;
+    float  factor_score;
+
+    bool      DO_FACTORIZATION                       = true;
+    bool      MUST_BE_POWER_OF_TWO                   = false; // Required for half-precision xforms
+    bool      MUST_BE_FACTOR_OF_FOUR                 = true; // May be faster
+    const int max_number_primes                      = 6;
+    int       primes[max_number_primes]              = {2, 3, 5, 7, 9, 13};
+    float     max_reduction_by_fraction_of_reference = 0.000001f; // FIXME the cpu version is crashing when the image is reduced, but not the GPU
+    float     max_increas_by_fraction_of_image       = 0.1f;
+    int       max_padding                            = 0; // To restrict histogram calculation
+    float     histogram_padding_trim_rescale; // scale the counts to
+
+    // for 5760 this will return
+    // 5832 2     2     2     3     3     3     3     3     3 - this is ~ 10% faster than the previous solution BUT
+    if ( DO_FACTORIZATION ) {
+        for ( i = 0; i < max_number_primes; i++ ) {
+
+            factor_result_neg = ReturnClosestFactorizedLower(original_input_image_x, primes[i], true, MUST_BE_FACTOR_OF_FOUR);
+            factor_result_pos = ReturnClosestFactorizedUpper(original_input_image_x, primes[i], true, MUST_BE_FACTOR_OF_FOUR);
+
+            if ( (float)(original_input_image_x - factor_result_neg) < (float)search_templates_file.ReturnXSize( ) * max_reduction_by_fraction_of_reference ) {
+                factorizable_x = factor_result_neg;
+                break;
+            }
+            if ( (float)(-original_input_image_x + factor_result_pos) < (float)input_image.logical_x_dimension * max_increas_by_fraction_of_image ) {
+                factorizable_x = factor_result_pos;
+                break;
+            }
+        }
+        factor_score = FLT_MAX;
+        for ( i = 0; i < max_number_primes; i++ ) {
+
+            factor_result_neg = ReturnClosestFactorizedLower(original_input_image_y, primes[i], true, MUST_BE_FACTOR_OF_FOUR);
+            factor_result_pos = ReturnClosestFactorizedUpper(original_input_image_y, primes[i], true, MUST_BE_FACTOR_OF_FOUR);
+
+            if ( (float)(original_input_image_y - factor_result_neg) < (float)search_templates_file.ReturnYSize( ) * max_reduction_by_fraction_of_reference ) {
+                factorizable_y = factor_result_neg;
+                break;
+            }
+            if ( (float)(-original_input_image_y + factor_result_pos) < (float)input_image.logical_y_dimension * max_increas_by_fraction_of_image ) {
+                factorizable_y = factor_result_pos;
+                break;
+            }
+        }
+        if ( factorizable_x - original_input_image_x > max_padding )
+            max_padding = factorizable_x - original_input_image_x;
+        if ( factorizable_y - original_input_image_y > max_padding )
+            max_padding = factorizable_y - original_input_image_y;
+
+        if ( ReturnThreadNumberOfCurrentThread( ) == 0 ) {
+            wxPrintf("old x, y = %i %i\n  new x, y = %i %i\n", input_image.logical_x_dimension, input_image.logical_y_dimension, factorizable_x, factorizable_y);
+        }
+
+        input_image.Resize(factorizable_x, factorizable_y, 1, input_image.ReturnAverageOfRealValuesOnEdges( ));
+
+        search_templates.ReadSlices(&search_templates_file, 1, search_templates_file.ReturnNumberOfSlices( ));
+        if ( padding != 1.0f ) {
+            search_templates.Resize(search_templates.logical_x_dimension * padding, search_templates.logical_y_dimension * padding, search_templates.logical_z_dimension * padding, search_templates.ReturnAverageOfRealValuesOnEdges( ));
+        }
+
+
+    }
+
+
     //Get ctf object to use for calculating ctf
     CTF input_ctf;
     input_ctf.Init(voltage_kV, spherical_aberration_mm, amplitude_contrast, defocus1, defocus2, defocus_angle, 0.0, 0.0, 0.0, pixel_size, deg_2_rad(phase_shift));
@@ -162,7 +240,8 @@ bool MatchTemplateApp::DoCalculation( ) {
     whitening_filter.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
     number_of_terms.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
 
-    std::cout << "1" << std::endl;
+
+    
     wxDateTime my_time_out;
     wxDateTime my_time_in;
     // remove outliers
@@ -189,7 +268,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     int total_correlation_positions_per_thread = total_correlation_positions;
 
     ProgressBar* my_progress;
-    std::cout << "2" << std::endl;
+    
     //Loop over ever search position
     //may have to change some of these because some of these variables are not used
     // wxPrintf("\n\tFor image id %i\n", image_number_for_gui);
@@ -199,19 +278,28 @@ bool MatchTemplateApp::DoCalculation( ) {
     wxPrintf("There are %li correlation positions total.\n\n", total_correlation_positions);
 
     wxPrintf("Performing Search...\n\n");
+        search_templates.ChangePixelSize(&template_reconstruction, (1.5, 0.001f, true);
+               //    template_reconstruction.ForwardFFT();
+        template_reconstruction.ZeroCentralPixel( );
+        template_reconstruction.SwapRealSpaceQuadrants( );
 
         input_ctf.SetDefocus(defocus1, defocus2, deg_2_rad(defocus_angle));
         //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
         projection_filter.CalculateCTFImage(input_ctf);
         projection_filter.ApplyCurveFilter(&whitening_filter);
-        std::cout << "3" << std::endl;
+        
+
+        
+
+
     for ( int current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
         // make the projection filter, which will be CTF * whitening filter
         // if defocus step is zero, can we just get rid of the defocus_step and defocus_i?
         // input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
- 
-        
+        wxPrintf("here ");
+        wxPrintf(&search_templates_file);
         if ( padding != 1.0f ) {
+            
             template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //changed to ReadSlice
             padded_projection.SwapRealSpaceQuadrants( );
             padded_projection.BackwardFFT( );
@@ -219,6 +307,7 @@ bool MatchTemplateApp::DoCalculation( ) {
             current_projection.ForwardFFT( );
             }
             else {
+                
                 template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //  changed to ReadSlice
                 current_projection.SwapRealSpaceQuadrants( );
                 }
@@ -238,7 +327,7 @@ bool MatchTemplateApp::DoCalculation( ) {
         padded_reference.ForwardFFT( );
         // Zeroing the central pixel is probably not doing anything useful...
         padded_reference.ZeroCentralPixel( );       
-std::cout << "4" << std::endl;
+
 #ifdef MKL
                     // Use the MKL
                     vmcMulByConj(padded_reference.real_memory_allocated / 2, reinterpret_cast<MKL_Complex8*>(input_image.complex_values), reinterpret_cast<MKL_Complex8*>(padded_reference.complex_values), reinterpret_cast<MKL_Complex8*>(padded_reference.complex_values), VML_EP | VML_FTZDAZ_ON | VML_ERRMODE_IGNORE);
