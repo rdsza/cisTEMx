@@ -88,7 +88,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     // float    defocus_angle                 = my_current_job.arguments[4].ReturnFloatArgument( );
     // int      first_search_position         = my_current_job.arguments[5].ReturnIntegerArgument( );
     // int      last_search_position          = my_current_job.arguments[6].ReturnIntegerArgument( );
-    wxString cc_output_filename  = my_current_job.arguments[0].ReturnStringArgument( );
+    wxString cc_output_file  = my_current_job.arguments[0].ReturnStringArgument( );
     wxString input_search_images_filename       = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/00040_3_0.mrc";
     wxString search_templates_filename          = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/1.5_psi_92_peaks.mrc";
     float defocus1                  = 13850;
@@ -118,6 +118,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     int current_y;
     ImageFile input_search_image_file;
     ImageFile search_templates_file;
+    // ImageFile cc_output_file;
 
     Image input_image;
     Image padded_reference;
@@ -137,6 +138,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     
     input_search_image_file.OpenFile(input_search_images_filename.ToStdString( ), false);
     search_templates_file.OpenFile(search_templates_filename.ToStdString( ), false);
+    // cc_output_file.OpenFile(cc_output_file.ToStdString( ), false);
     input_image.ReadSlice(&input_search_image_file, 1);
 
 
@@ -232,9 +234,10 @@ bool MatchTemplateApp::DoCalculation( ) {
     padded_reference.SetToConstant(0.0f);
     // max_intensity_projection.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     // max_intensity_projection.SetToConstant(-FLT_MAX);
-    if ( padding != 1.0f )
-        padded_projection.Allocate(search_templates_file.ReturnXSize( ) * padding, search_templates_file.ReturnXSize( ) * padding, false);
-    cc_output.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    if ( padding != 1.0f ){
+        padded_projection.Allocate(search_templates_file.ReturnXSize( ) * padding, search_templates_file.ReturnXSize( ) * padding, false);}
+    cc_output.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 92);
+    
 
     // I think we need all this 
     whitening_filter.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
@@ -304,16 +307,17 @@ bool MatchTemplateApp::DoCalculation( ) {
 
         if ( padding != 1.0f ) {
             
-            template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //changed to ReadSlice
-            padded_projection.SwapRealSpaceQuadrants( );
-            padded_projection.BackwardFFT( );
+            current_projection.ReadSlice(&search_templates_file, current_search_position); //changed to ReadSlice
+            // padded_projection.SwapRealSpaceQuadrants( );
+            // padded_projection.BackwardFFT( );
             padded_projection.ClipInto(&current_projection);
             current_projection.ForwardFFT( );
             }
             else {
                  // wxPrintf("There are %i xs, %i ys, %i zs \n", template_reconstruction.logical_x_dimension, template_reconstruction.logical_y_dimension, template_reconstruction.logical_z_dimension);
-                template_reconstruction.ReadSlice(&search_templates_file, current_search_position); //  changed to ReadSlice
-                current_projection.SwapRealSpaceQuadrants( );
+                current_projection.ReadSlice(&search_templates_file, current_search_position); //  changed to ReadSlice
+                current_projection.ForwardFFT( );
+                // current_projection.SwapRealSpaceQuadrants( );
                 }
         current_projection.MultiplyPixelWise(projection_filter);
         current_projection.BackwardFFT( );
@@ -324,6 +328,7 @@ bool MatchTemplateApp::DoCalculation( ) {
         // We want a variance of 1 in the padded FFT. Scale the small SumOfSquares (which is already divided by n) and then re-divide by N.
         float variance = current_projection.ReturnSumOfSquares( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels - powf(current_projection.ReturnAverageOfRealValues( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels, 2);
         current_projection.DivideByConstant(sqrtf(variance));
+        // current_projection.QuickAndDirtyWriteSlice(output_filename, i + 1);
         current_projection.ClipIntoLargerRealSpace2D(&padded_reference);
 
         // Note: The real space variance is set to 1.0 (for the padded size image) and that results in a variance of N in the FFT do to the scaling of the FFT,
@@ -356,7 +361,7 @@ bool MatchTemplateApp::DoCalculation( ) {
 
             pixel_counter += padded_reference.padding_jump_value;
             }
-            cc_output.QuickAndDirtyWriteSlice(cc_output_filename.ToStdString( ), current_search_position + 1);
+            cc_output.QuickAndDirtyWriteSlice(cc_output_file.ToStdString( ), current_search_position);
 
             // Write padded_reference to file as slices (92 slices) (imagesize_x,image_size_y,92)
 
