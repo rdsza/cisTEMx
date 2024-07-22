@@ -129,7 +129,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     Image projection_filter;
     Image correlation_pixel_sum_image;
     // Image max_intensity_projection;
-    Image cc_output;
+    MRCFile cc_output;
     // double* correlation_pixel_sum            = new double[input_image.real_memory_allocated];
     // double* correlation_pixel_sum_of_squares = new double[input_image.real_memory_allocated];
     // ZeroDoubleArray(correlation_pixel_sum, input_image.real_memory_allocated);
@@ -236,7 +236,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     // max_intensity_projection.SetToConstant(-FLT_MAX);
     if ( padding != 1.0f ){
         padded_projection.Allocate(search_templates_file.ReturnXSize( ) * padding, search_templates_file.ReturnXSize( ) * padding, false);}
-    cc_output.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 92);
+    //cc_output.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 92);
     
 
     // I think we need all this 
@@ -295,9 +295,9 @@ bool MatchTemplateApp::DoCalculation( ) {
         template_reconstruction.SwapRealSpaceQuadrants( );
   wxPrintf("There are %i xs, %i ys, %i zs \n", template_reconstruction.logical_x_dimension, template_reconstruction.logical_y_dimension, template_reconstruction.logical_z_dimension);
         
+cc_output.OpenFile(cc_output_file.ToStdString( ), true);
 
-
-    for ( int current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
+    for ( long current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
         // make the projection filter, which will be CTF * whitening filter
         // if defocus step is zero, can we just get rid of the defocus_step and defocus_i?
         // input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
@@ -349,19 +349,20 @@ bool MatchTemplateApp::DoCalculation( ) {
         // Taking the inverse FFT scales this variance by N resulting in a MIP with variance 1
         padded_reference.BackwardFFT( );
         // update mip, and histogram..
-        pixel_counter = 0;
-        for ( current_y = 0; current_y < cc_output.logical_y_dimension; current_y++ ) {
-            for ( current_x = 0; current_x < cc_output.logical_x_dimension; current_x++ ) {
-                // first mip
+        // pixel_counter = 0;
+        // for ( current_y = 0; current_y < cc_output.logical_y_dimension; current_y++ ) {
+        //     for ( current_x = 0; current_x < cc_output.logical_x_dimension; current_x++ ) {
+        //         // first mip
 
-                    cc_output.real_values[pixel_counter] = padded_reference.real_values[pixel_counter];
+        //             cc_output.real_values[pixel_counter] = padded_reference.real_values[pixel_counter];
                     
-                    pixel_counter++;
-            }
+        //             pixel_counter++;
+        //     }
 
-            pixel_counter += padded_reference.padding_jump_value;
-            }
-            cc_output.QuickAndDirtyWriteSlice(cc_output_file.ToStdString( ), current_search_position);
+        //     pixel_counter += padded_reference.padding_jump_value;
+        //     }
+            padded_reference.WriteSlice(&cc_output, current_search_position);
+            //cc_output.QuickAndDirtyWriteSlice(cc_output_file.ToStdString( ), current_search_position);
 
             // Write padded_reference to file as slices (92 slices) (imagesize_x,image_size_y,92)
 
@@ -387,6 +388,9 @@ bool MatchTemplateApp::DoCalculation( ) {
     //what about code 890 - 1040?
     // write out one single MIP
     //is the mip just a single float value? MIP is an image max_intensity_projection object
-    return true;
+    
 }
+               cc_output.SetPixelSize(pixel_size);
+                cc_output.WriteHeader( );
+                return true;
 }
