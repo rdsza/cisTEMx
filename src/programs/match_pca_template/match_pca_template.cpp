@@ -42,7 +42,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 
     wxString cc_output_file; // cross correlation output file 
 
-    float pixel_size              = 1.0f;
+    float pixel_size              = 1.5f;
     float voltage_kV              = 300.0f;
     float spherical_aberration_mm = 2.7f;
     float amplitude_contrast      = 0.07f;
@@ -109,7 +109,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     //float    pixel_size_step           = 0.02f;
     Curve whitening_filter;
     Curve number_of_terms;
-    float phase_shift;
+    float  phase_shift = 0.0f;
     //float defocus_step = 0.0f;
     //float defocus_search_range = 0.0f;
     long pixel_counter;
