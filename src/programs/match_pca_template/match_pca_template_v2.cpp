@@ -193,28 +193,33 @@ bool MatchTemplateApp::DoCalculation( ) {
     CTF input_ctf;
     input_ctf.Init(voltage_kV, spherical_aberration_mm, amplitude_contrast, defocus1, defocus2, defocus_angle, 0.0, 0.0, 0.0, pixel_size, deg_2_rad(phase_shift));
     
-    std::vector<float> orientations(starfile_binning.records_per_line);
+    
     //Allocate space    
     current_projection.Allocate(search_templates_file.ReturnXSize( ), search_templates_file.ReturnXSize( ), false);
     projection_filter.Allocate(search_templates_file.ReturnXSize( ), search_templates_file.ReturnXSize( ), false);
-    template_reconstruction.Allocate(search_templates.logical_x_dimension, search_templates.logical_y_dimension, 1, true);
+    template_reconstruction.Allocate(search_templates.logical_x_dimension, search_templates.logical_y_dimension, search_templates.logical_z_dimension, true);
     padded_reference.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     padded_reference.SetToConstant(0.0f);
-    if ( padding != 1.0f ){
-        padded_projection.Allocate(search_templates_file.ReturnXSize( ) * padding, search_templates_file.ReturnXSize( ) * padding, false);}
+    
+        padded_projection.Allocate(search_templates_file.ReturnXSize( ) * padding, search_templates_file.ReturnXSize( ) * padding, false);
+    
     //cc_output.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 92);
     
     whitening_filter.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
     number_of_terms.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
 
-
+    wxPrintf("there are %i " ,starfile_binning.number_of_lines);
     int  number_of_search_positions   = starfile_binning.number_of_lines;
+    std::vector<float> orientations(starfile_binning.records_per_line);
+    Allocate2DFloatArray(global_euler_search.list_of_search_parameters, number_of_search_positions, 3);
 
     for ( int counter = 0; counter <starfile_binning.number_of_lines; counter++ ) {
         starfile_binning.ReadLine(orientations.data( ));
-        global_euler_search.list_of_search_parameters[counter][0] = orientations.at(0);
+        
+
+        global_euler_search.list_of_search_parameters[counter][2] = orientations.at(0);
         global_euler_search.list_of_search_parameters[counter][1] = orientations.at(1);
-        global_euler_search.list_of_search_parameters[counter][2] = orientations.at(2);
+        global_euler_search.list_of_search_parameters[counter][0] = orientations.at(2);
     }
     starfile_binning.Close( );
 
@@ -253,6 +258,7 @@ bool MatchTemplateApp::DoCalculation( ) {
         input_ctf.SetDefocus(defocus1, defocus2, deg_2_rad(defocus_angle));
         projection_filter.CalculateCTFImage(input_ctf);
         projection_filter.ApplyCurveFilter(&whitening_filter);
+        search_templates.ChangePixelSize(&template_reconstruction, 1.5, 0.001f, true);
         template_reconstruction.ZeroCentralPixel( );
         template_reconstruction.SwapRealSpaceQuadrants( );
  //wxPrintf("There are %i xs, %i ys, %i zs \n", template_reconstruction.logical_x_dimension, template_reconstruction.logical_y_dimension, template_reconstruction.logical_z_dimension);
@@ -260,20 +266,21 @@ bool MatchTemplateApp::DoCalculation( ) {
 cc_output.OpenFile(cc_output_file.ToStdString( ), true);
 
     for (current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
-        angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], global_euler_search.list_of_search_parameters[current_search_position][2] ,0.0, 0.0);
+        angles.Init(global_euler_search.list_of_search_parameters[current_search_position-1][0], global_euler_search.list_of_search_parameters[current_search_position-1][1], global_euler_search.list_of_search_parameters[current_search_position-1][2] ,0.0, 0.0);
         if ( padding != 1.0f ) {
             template_reconstruction.ExtractSlice(padded_projection, angles, 1.0f, false);
             //current_projection.ReadSlice(&search_templates_file, current_search_position); //changed to ReadSlice
-            // padded_projection.SwapRealSpaceQuadrants( );
-            // padded_projection.BackwardFFT( );
+            padded_projection.SwapRealSpaceQuadrants( );
+            padded_projection.BackwardFFT( );
             padded_projection.ClipInto(&current_projection);
             current_projection.ForwardFFT( );
             }
             else {
-                template_reconstruction.ExtractSlice(padded_projection, angles, 1.0f, false);
+                //  wxPrintf("There are %i xs, %i ys, %i zs \n", template_reconstruction.logical_x_dimension, template_reconstruction.logical_y_dimension, template_reconstruction.logical_z_dimension);
+                template_reconstruction.ExtractSlice(current_projection, angles, 1.0f, false);
                 //current_projection.ReadSlice(&search_templates_file, current_search_position); //  changed to ReadSlice
-                current_projection.ForwardFFT( );
-                // current_projection.SwapRealSpaceQuadrants( );
+                //current_projection.ForwardFFT( );
+                current_projection.SwapRealSpaceQuadrants( );
                 }
         current_projection.MultiplyPixelWise(projection_filter);
         current_projection.BackwardFFT( );
@@ -315,7 +322,7 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
 
     
 }
-               cc_output.SetPixelSize(pixel_size);
+                cc_output.SetPixelSize(pixel_size);
                 cc_output.WriteHeader( );
                 return true;
 }
