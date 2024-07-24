@@ -48,43 +48,33 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     UserInput* my_input = new UserInput("Perform Cross Correlations on image stack", 1.00);
 
     // get input
-    // input_search_images       = my_input->GetFilenameFromUser("Input images to be searched", "", "input.mrc", false);
-    // search_templates          = my_input->GetFilenameFromUser("Input template stack", "", "input.mrc", false);
-    // defocus1                  = my_input->GetFloatFromUser("Defocus1 (angstroms)", "Defocus1 for the input image", "10000", 0.0);
-    // defocus2                  = my_input->GetFloatFromUser("Defocus2 (angstroms)", "Defocus2 for the input image", "10000", 0.0);
-    // defocus_angle             = my_input->GetFloatFromUser("Defocus Angle (degrees)", "Defocus Angle for the input image", "0.0");
-    input_search_images       = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/00040_3_0.mrc";
-    search_templates          = "src/programs/match_pca_template/ribosome_peaks_templates_192.mrc";
-    defocus1                  = 13850;
-    defocus2                  = 13272;
-    defocus_angle             = -4.5;
-    cc_output_file        = my_input->GetFilenameFromUser("Output cross correlation filename","", "output_cc.mrc", false);
+    input_search_images       = my_input->GetFilenameFromUser("Input images to be searched", "", "input.mrc", false);
+    search_templates          = my_input->GetFilenameFromUser("Input template stack", "", "input.mrc", false);
+    defocus1                  = my_input->GetFloatFromUser("Defocus1 (angstroms)", "Defocus1 for the input image", "10000", 0.0);
+    defocus2                  = my_input->GetFloatFromUser("Defocus2 (angstroms)", "Defocus2 for the input image", "10000", 0.0);
+    defocus_angle             = my_input->GetFloatFromUser("Defocus Angle (degrees)", "Defocus Angle for the input image", "0.0");
+    cc_output_file            = my_input->GetFilenameFromUser("Output cross correlation filename","", "output_cc.mrc", false);
     // int first_search_position = 0; //let's try with zero
     // int last_search_position  = 91; //maybe 92
     delete my_input;
 
     // my_current_job.ManualSetArguments("ttfffiit", input_search_images.ToUTF8( ).data( ), search_templates.ToUTF8( ).data( ),
     // defocus1, defocus2, defocus_angle, first_search_position, last_search_position, cc_output_file.ToUTF8( ).data( ));
-    my_current_job.ManualSetArguments("t", cc_output_file.ToUTF8( ).data( ));
+    my_current_job.ManualSetArguments("ttffft", input_search_images.ToUTF8( ).data( ),search_templates.ToUTF8( ).data( ), defocus1, defocus2, defocus_angle, cc_output_file.ToUTF8( ).data( ));
 }
 
 bool MatchTemplateApp::DoCalculation( ) {
 
     wxDateTime start_time = wxDateTime::Now( );
 
-    // wxString input_search_images_filename  = my_current_job.arguments[0].ReturnStringArgument( );
-    // wxString search_templates_filename     = my_current_job.arguments[1].ReturnStringArgument( );
-    // float    defocus1                      = my_current_job.arguments[2].ReturnFloatArgument( );
-    // float    defocus2                      = my_current_job.arguments[3].ReturnFloatArgument( );
-    // float    defocus_angle                 = my_current_job.arguments[4].ReturnFloatArgument( );
+    wxString input_search_images_filename  = my_current_job.arguments[0].ReturnStringArgument( );
+    wxString search_templates_filename     = my_current_job.arguments[1].ReturnStringArgument( );
+    float    defocus1                      = my_current_job.arguments[2].ReturnFloatArgument( );
+    float    defocus2                      = my_current_job.arguments[3].ReturnFloatArgument( );
+    float    defocus_angle                 = my_current_job.arguments[4].ReturnFloatArgument( );
     // int      first_search_position         = my_current_job.arguments[5].ReturnIntegerArgument( );
     // int      last_search_position          = my_current_job.arguments[6].ReturnIntegerArgument( );
-    wxString cc_output_file  = my_current_job.arguments[0].ReturnStringArgument( );
-    wxString input_search_images_filename       = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/00040_3_0.mrc";
-    wxString search_templates_filename          = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/ribosome_peaks_templates_192_switched.mrc";
-    float defocus1                  = 13850;
-    float defocus2                  = 13272;
-    float defocus_angle             = -4.5;
+    wxString cc_output_file  = my_current_job.arguments[5].ReturnStringArgument( );
    
 
     int first_search_position = 1; 
