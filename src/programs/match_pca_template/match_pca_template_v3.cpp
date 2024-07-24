@@ -385,14 +385,9 @@ bool MatchTemplateApp::DoCalculation( ) {
     }
 
     padded_reference.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
-    max_intensity_projection.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
-    correlation_pixel_sum_image.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
-    correlation_pixel_sum_of_squares_image.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
-    double* correlation_pixel_sum            = new double[input_image.real_memory_allocated];
-    double* correlation_pixel_sum_of_squares = new double[input_image.real_memory_allocated];
-
+    
     padded_reference.SetToConstant(0.0f);
-    max_intensity_projection.SetToConstant(-FLT_MAX);
+
 
 
 
@@ -470,15 +465,9 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     
 
-    if ( my_symmetry.StartsWith("C") ) // TODO 2x check me - w/o this O symm at least is broken
-    {
-        if ( global_euler_search.test_mirror == true ) // otherwise the theta max is set to 90.0 and test_mirror is set to true.  However, I don't want to have to test the mirrors.
-        {
-            global_euler_search.theta_max = 180.0f;
-        }
-    }
 
-    global_euler_search.CalculateGridSearchPositions(false);
+
+    // global_euler_search.CalculateGridSearchPositions(false);
     // for now, I am assuming the MTF has been applied already.
     // work out the filter to just whiten the image..
 
