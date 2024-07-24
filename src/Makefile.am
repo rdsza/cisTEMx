@@ -855,7 +855,7 @@ match_pca_template_CXXFLAGS = $(WX_CPPFLAGS_BASE)
 match_pca_template_CPPFLAGS = $(WX_CPPFLAGS_BASE)
 match_pca_template_LDADD    = libcore.a $(WX_LIBS_BASE)
 
-match_pca_template_v2_SOURCES  = programs/match_pca_template_v2/match_pca_template_v2.cpp
+match_pca_template_v2_SOURCES  = programs/match_pca_template/match_pca_template_v2.cpp
 match_pca_template_v2_CXXFLAGS = $(WX_CPPFLAGS_BASE)
 match_pca_template_v2_CPPFLAGS = $(WX_CPPFLAGS_BASE)
 match_pca_template_v2_LDADD    = libcore.a $(WX_LIBS_BASE)
