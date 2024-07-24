@@ -29,7 +29,7 @@ IMPLEMENT_APP(MatchTemplateApp)
 
 void MatchTemplateApp::DoInteractiveUserInput( ) {
     wxString input_search_images = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/00040_3_0.mrc";
-    wxString input_reconstruction =  "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/ribosome_peaks_templates_7ood.mrc";
+    wxString input_reconstruction =  "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/7ood.mrc";
     wxString cc_output_file; // cross correlation output file 
     wxString mip_output_file = "";
     wxString best_psi_output_file ="";
@@ -42,7 +42,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     wxString correlation_std_output_file="";
     wxString correlation_avg_output_file="";
     wxString scaled_mip_output_file="";
-    wxString starfile_file = "peak_angles.txt";
+    wxString starfile_file = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/peak_angles.txt";
 
 
     float pixel_size              = 1.5f;
@@ -510,15 +510,14 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     // count total searches (lazy)
 
-    total_correlation_positions  = 0;
+    total_correlation_positions  = 92;
     current_correlation_position = 0;
 
     // if running locally, search over all of them
 
-    if ( is_running_locally == true ) {
+  
         first_search_position = 0;
-        last_search_position  = global_euler_search.number_of_search_positions - 1;
-    }
+        last_search_position  = 91;
 
 
 
@@ -634,7 +633,7 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
                     // Taking the inverse FFT scales this variance by N resulting in a MIP with variance 1
                     padded_reference.BackwardFFT( );
                     padded_reference.Resize(original_input_image_x, original_input_image_y, 1);
-                    padded_reference.WriteSlice(&cc_output, current_search_position);
+                    padded_reference.WriteSlice(&cc_output, current_search_position +1);
 
                    
                     current_projection.is_in_real_space = false;
@@ -642,14 +641,16 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
 
 
                 
-            
-        
+                wxPrintf("\n\n\tTimings: Overall: %i\n", current_search_position);
  
+        
+
     }
+        wxPrintf("\n\n\tTimings: Overall: %s\n", (wxDateTime::Now( ) - overall_start).Format( ));
+ 
                 cc_output.SetPixelSize(pixel_size);
                 cc_output.WriteHeader( );
 
-    wxPrintf("\n\n\tTimings: Overall: %s\n", (wxDateTime::Now( ) - overall_start).Format( ));
 
 
 
