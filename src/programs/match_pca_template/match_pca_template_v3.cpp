@@ -23,42 +23,40 @@ class
 
 IMPLEMENT_APP(MatchTemplateApp)
 
-// TODO: why is this here?
-void MatchTemplateApp::ProgramSpecificInit( ) {
-}
+
 
 // override the DoInteractiveUserInput
 
 void MatchTemplateApp::DoInteractiveUserInput( ) {
-    wxString input_search_images;
-    wxString input_reconstruction;
+    wxString input_search_images = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/00040_3_0.mrc";
+    wxString input_reconstruction =  "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/ribosome_peaks_templates_7ood.mrc";
+    wxString cc_output_file; // cross correlation output file 
+    wxString mip_output_file = "";
+    wxString best_psi_output_file ="";
+    wxString best_theta_output_file = "";
+    wxString best_phi_output_file = "";
+    wxString best_defocus_output_file ="";
+    wxString best_pixel_size_output_file="" ;
 
-    wxString mip_output_file;
-    wxString best_psi_output_file;
-    wxString best_theta_output_file;
-    wxString best_phi_output_file;
-    wxString best_defocus_output_file;
-    wxString best_pixel_size_output_file;
+    wxString output_histogram_file="";
+    wxString correlation_std_output_file="";
+    wxString correlation_avg_output_file="";
+    wxString scaled_mip_output_file="";
+    wxString starfile_file = "peak_angles.txt";
 
-    wxString output_histogram_file;
-    wxString correlation_std_output_file;
-    wxString correlation_avg_output_file;
-    wxString scaled_mip_output_file;
-    wxString starfile_file;
-    wxString coords_to_track_file;
 
-    float pixel_size              = 1.0f;
+    float pixel_size              = 1.5f;
     float voltage_kV              = 300.0f;
     float spherical_aberration_mm = 2.7f;
     float amplitude_contrast      = 0.07f;
-    float defocus1                = 10000.0f;
-    float defocus2                = 10000.0f;
+    float defocus1                = 13849.74f;
+    float defocus2                = 13271.80f;
     ;
-    float    defocus_angle;
-    float    phase_shift;
+    float    defocus_angle  = -4.5;
+    float    phase_shift = 0;
     float    low_resolution_limit      = 300.0;
-    float    high_resolution_limit     = 8.0;
-    float    angular_step              = 5.0;
+    float    high_resolution_limit     = 3.0;
+    float    angular_step              = 2.5;
     int      best_parameters_to_keep   = 20;
     float    defocus_search_range      = 500;
     float    defocus_step              = 50;
@@ -74,42 +72,45 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 
     UserInput* my_input = new UserInput("MatchTemplate", 1.00);
 
-    input_search_images         = my_input->GetFilenameFromUser("Input images to be searched", "The input image stack, containing the images that should be searched", "image_stack.mrc", true);
-    input_reconstruction        = my_input->GetFilenameFromUser("Input template reconstruction", "The 3D reconstruction from which projections are calculated", "reconstruction.mrc", true);
-    mip_output_file             = my_input->GetFilenameFromUser("Output MIP file", "The file for saving the maximum intensity projection image", "mip.mrc", false);
-    scaled_mip_output_file      = my_input->GetFilenameFromUser("Output Scaled MIP file", "The file for saving the maximum intensity projection image divided by correlation variance", "mip_scaled.mrc", false);
-    best_psi_output_file        = my_input->GetFilenameFromUser("Output psi file", "The file for saving the best psi image", "psi.mrc", false);
-    best_theta_output_file      = my_input->GetFilenameFromUser("Output theta file", "The file for saving the best psi image", "theta.mrc", false);
-    best_phi_output_file        = my_input->GetFilenameFromUser("Output phi file", "The file for saving the best psi image", "phi.mrc", false);
-    best_defocus_output_file    = my_input->GetFilenameFromUser("Output defocus file", "The file for saving the best defocus image", "defocus.mrc", false);
-    best_pixel_size_output_file = my_input->GetFilenameFromUser("Output pixel size file", "The file for saving the best pixel size image", "pixel_size.mrc", false);
-    correlation_avg_output_file = my_input->GetFilenameFromUser("Correlation average value", "The file for saving the average value of all correlation images", "corr_average.mrc", false);
-    correlation_std_output_file = my_input->GetFilenameFromUser("Correlation variance output file", "The file for saving the variance of all correlation images", "corr_variance.mrc", false);
-    output_histogram_file       = my_input->GetFilenameFromUser("Output histogram of correlation values", "histogram of all correlation values", "histogram.txt", false);
-    pixel_size                  = my_input->GetFloatFromUser("Pixel size of images (A)", "Pixel size of input images in Angstroms", "1.0", 0.0);
-    voltage_kV                  = my_input->GetFloatFromUser("Beam energy (keV)", "The energy of the electron beam used to image the sample in kilo electron volts", "300.0", 0.0);
-    spherical_aberration_mm     = my_input->GetFloatFromUser("Spherical aberration (mm)", "Spherical aberration of the objective lens in millimeters", "2.7");
-    amplitude_contrast          = my_input->GetFloatFromUser("Amplitude contrast", "Assumed amplitude contrast", "0.07", 0.0, 1.0);
-    defocus1                    = my_input->GetFloatFromUser("Defocus1 (angstroms)", "Defocus1 for the input image", "10000", 0.0);
-    defocus2                    = my_input->GetFloatFromUser("Defocus2 (angstroms)", "Defocus2 for the input image", "10000", 0.0);
-    defocus_angle               = my_input->GetFloatFromUser("Defocus Angle (degrees)", "Defocus Angle for the input image", "0.0");
-    phase_shift                 = my_input->GetFloatFromUser("Phase Shift (degrees)", "Additional phase shift in degrees", "0.0");
-    //    low_resolution_limit = my_input->GetFloatFromUser("Low resolution limit (A)", "Low resolution limit of the data used for alignment in Angstroms", "300.0", 0.0);
-    high_resolution_limit = my_input->GetFloatFromUser("High resolution limit (A)", "High resolution limit of the data used for alignment in Angstroms", "8.0", 0.0);
-    angular_step          = my_input->GetFloatFromUser("Out of plane angular step (0.0 = set automatically)", "Angular step size for global grid search", "0.0", 0.0);
-    in_plane_angular_step = my_input->GetFloatFromUser("In plane angular step (0.0 = set automatically)", "Angular step size for in-plane rotations during the search", "0.0", 0.0);
-    //    best_parameters_to_keep = my_input->GetIntFromUser("Number of top hits to refine", "The number of best global search orientations to refine locally", "20", 1);
-    defocus_search_range    = my_input->GetFloatFromUser("Defocus search range (A)", "Search range (-value ... + value) around current defocus", "500.0", 0.0);
-    defocus_step            = my_input->GetFloatFromUser("Defocus step (A) (0.0 = no search)", "Step size used in the defocus search", "50.0", 0.0);
-    pixel_size_search_range = my_input->GetFloatFromUser("Pixel size search range (A)", "Search range (-value ... + value) around current pixel size", "0.1", 0.0);
-    pixel_size_step         = my_input->GetFloatFromUser("Pixel size step (A) (0.0 = no search)", "Step size used in the pixel size search", "0.01", 0.0);
-    padding                 = my_input->GetFloatFromUser("Padding factor", "Factor determining how much the input volume is padded to improve projections", "1.0", 1.0, 2.0);
-    //    ctf_refinement = my_input->GetYesNoFromUser("Refine defocus", "Should the particle defocus be refined?", "No");
-    particle_radius_angstroms = my_input->GetFloatFromUser("Mask radius for global search (A) (0.0 = max)", "Radius of a circular mask to be applied to the input images during global search", "0.0", 0.0);
-    my_symmetry               = my_input->GetSymmetryFromUser("Template symmetry", "The symmetry of the template reconstruction", "C1");
+    // input_search_images         = my_input->GetFilenameFromUser("Input images to be searched", "The input image stack, containing the images that should be searched", "image_stack.mrc", true);
+    // input_reconstruction        = my_input->GetFilenameFromUser("Input template reconstruction", "The 3D reconstruction from which projections are calculated", "reconstruction.mrc", true);
+    // mip_output_file             = my_input->GetFilenameFromUser("Output MIP file", "The file for saving the maximum intensity projection image", "mip.mrc", false);
+    // scaled_mip_output_file      = my_input->GetFilenameFromUser("Output Scaled MIP file", "The file for saving the maximum intensity projection image divided by correlation variance", "mip_scaled.mrc", false);
+    // best_psi_output_file        = my_input->GetFilenameFromUser("Output psi file", "The file for saving the best psi image", "psi.mrc", false);
+    // best_theta_output_file      = my_input->GetFilenameFromUser("Output theta file", "The file for saving the best psi image", "theta.mrc", false);
+    // best_phi_output_file        = my_input->GetFilenameFromUser("Output phi file", "The file for saving the best psi image", "phi.mrc", false);
+    // best_defocus_output_file    = my_input->GetFilenameFromUser("Output defocus file", "The file for saving the best defocus image", "defocus.mrc", false);
+    // best_pixel_size_output_file = my_input->GetFilenameFromUser("Output pixel size file", "The file for saving the best pixel size image", "pixel_size.mrc", false);
+    // correlation_avg_output_file = my_input->GetFilenameFromUser("Correlation average value", "The file for saving the average value of all correlation images", "corr_average.mrc", false);
+    // correlation_std_output_file = my_input->GetFilenameFromUser("Correlation variance output file", "The file for saving the variance of all correlation images", "corr_variance.mrc", false);
+    // output_histogram_file       = my_input->GetFilenameFromUser("Output histogram of correlation values", "histogram of all correlation values", "histogram.txt", false);
+    // pixel_size                  = my_input->GetFloatFromUser("Pixel size of images (A)", "Pixel size of input images in Angstroms", "1.0", 0.0);
+    // voltage_kV                  = my_input->GetFloatFromUser("Beam energy (keV)", "The energy of the electron beam used to image the sample in kilo electron volts", "300.0", 0.0);
+    // spherical_aberration_mm     = my_input->GetFloatFromUser("Spherical aberration (mm)", "Spherical aberration of the objective lens in millimeters", "2.7");
+    // amplitude_contrast          = my_input->GetFloatFromUser("Amplitude contrast", "Assumed amplitude contrast", "0.07", 0.0, 1.0);
+    // defocus1                    = my_input->GetFloatFromUser("Defocus1 (angstroms)", "Defocus1 for the input image", "10000", 0.0);
+    // defocus2                    = my_input->GetFloatFromUser("Defocus2 (angstroms)", "Defocus2 for the input image", "10000", 0.0);
+    // defocus_angle               = my_input->GetFloatFromUser("Defocus Angle (degrees)", "Defocus Angle for the input image", "0.0");
+    // phase_shift                 = my_input->GetFloatFromUser("Phase Shift (degrees)", "Additional phase shift in degrees", "0.0");
+    // //    low_resolution_limit = my_input->GetFloatFromUser("Low resolution limit (A)", "Low resolution limit of the data used for alignment in Angstroms", "300.0", 0.0);
+    // high_resolution_limit = my_input->GetFloatFromUser("High resolution limit (A)", "High resolution limit of the data used for alignment in Angstroms", "8.0", 0.0);
+    // angular_step          = my_input->GetFloatFromUser("Out of plane angular step (0.0 = set automatically)", "Angular step size for global grid search", "0.0", 0.0);
+    // in_plane_angular_step = my_input->GetFloatFromUser("In plane angular step (0.0 = set automatically)", "Angular step size for in-plane rotations during the search", "0.0", 0.0);
+    // //    best_parameters_to_keep = my_input->GetIntFromUser("Number of top hits to refine", "The number of best global search orientations to refine locally", "20", 1);
+    // defocus_search_range    = my_input->GetFloatFromUser("Defocus search range (A)", "Search range (-value ... + value) around current defocus", "500.0", 0.0);
+    // defocus_step            = my_input->GetFloatFromUser("Defocus step (A) (0.0 = no search)", "Step size used in the defocus search", "50.0", 0.0);
+    // pixel_size_search_range = my_input->GetFloatFromUser("Pixel size search range (A)", "Search range (-value ... + value) around current pixel size", "0.1", 0.0);
+    // pixel_size_step         = my_input->GetFloatFromUser("Pixel size step (A) (0.0 = no search)", "Step size used in the pixel size search", "0.01", 0.0);
+    // padding                 = my_input->GetFloatFromUser("Padding factor", "Factor determining how much the input volume is padded to improve projections", "1.0", 1.0, 2.0);
+    // //    ctf_refinement = my_input->GetYesNoFromUser("Refine defocus", "Should the particle defocus be refined?", "No");
+    // particle_radius_angstroms = my_input->GetFloatFromUser("Mask radius for global search (A) (0.0 = max)", "Radius of a circular mask to be applied to the input images during global search", "0.0", 0.0);
+    // my_symmetry               = my_input->GetSymmetryFromUser("Template symmetry", "The symmetry of the template reconstruction", "C1");
 
 
-    starfile_file         = my_input->GetFilenameFromUser("Starfile", "File containing the Phi and Theta and Psi values for search", "orientations.txt", false);
+    // starfile_file         = my_input->GetFilenameFromUser("Starfile", "File containing the Phi and Theta and Psi values for search", "orientations.txt", false);
+    cc_output_file            = my_input->GetFilenameFromUser("Output cross correlation filename","", "output_cc.mrc", false);
+
+
     int   first_search_position           = -1;
     int   last_search_position            = -1;
     int   image_number_for_gui            = 3;
@@ -120,7 +121,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     wxString result_filename       = "/dev/null"; // shouldn't be used in interactive
 
     delete my_input;
-
+    const char* jop_code_arg_string = "ttffffffffffifffffbfftttttttttftiiiitttfbitt";
     my_current_job.ManualSetArguments(jop_code_arg_string, input_search_images.ToUTF8( ).data( ),
                                       input_reconstruction.ToUTF8( ).data( ),
                                       pixel_size,
@@ -165,7 +166,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
                                       max_threads
                                       ,
                                       starfile_file.ToUTF8( ).data( ),
-                                      coords_to_track_file.ToUTF8( ).data( ));
+                                      cc_output_file.ToUTF8( ).data( ));
 }
 
 // override the do calculation method which will be what is actually run..
@@ -218,6 +219,8 @@ bool MatchTemplateApp::DoCalculation( ) {
     float    min_peak_radius                 = my_current_job.arguments[39].ReturnFloatArgument( );
     bool     use_gpu                         = my_current_job.arguments[40].ReturnBoolArgument( );
     int      max_threads                     = my_current_job.arguments[41].ReturnIntegerArgument( );
+    wxString starfile_file = my_current_job.arguments[42].ReturnStringArgument( );
+    wxString  cc_output_file = my_current_job.arguments[43].ReturnStringArgument( );
 
 
 
@@ -310,6 +313,8 @@ bool MatchTemplateApp::DoCalculation( ) {
     Image correlation_pixel_sum_of_squares_image;
 
     Image temp_image;
+
+    MRCFile cc_output;
 
     input_image.ReadSlice(&input_search_image_file, 1);
 
@@ -457,9 +462,9 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     for ( int counter = 0; counter < starfile_binning.number_of_lines; counter++ ) {
         starfile_binning.ReadLine(orientations.data( ));
-        global_euler_search.list_of_search_parameters[counter][0] = orientations.at(0);
+        global_euler_search.list_of_search_parameters[counter][2] = orientations.at(0);
         global_euler_search.list_of_search_parameters[counter][1] = orientations.at(1);
-        global_euler_search.list_of_search_parameters[counter][2] = orientations.at(2);
+        global_euler_search.list_of_search_parameters[counter][0] = orientations.at(2);
     }
     starfile_binning.Close( );
 
@@ -559,19 +564,19 @@ bool MatchTemplateApp::DoCalculation( ) {
         my_progress = new ProgressBar(total_correlation_positions_per_thread);
     }
 
-    //    wxPrintf("Starting job\n");
-    for ( size_i = -myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i <= myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i++ ) {
-        //        template_reconstruction.CopyFrom(&input_reconstruction);
-        input_reconstruction.ChangePixelSize(&template_reconstruction, (pixel_size + float(size_i) * pixel_size_step) / pixel_size, 0.001f, true);
+cc_output.OpenFile(cc_output_file.ToStdString( ), true);
+
+
+        input_reconstruction.ChangePixelSize(&template_reconstruction, 1.5, 0.001f, true);
         //    template_reconstruction.ForwardFFT();
         template_reconstruction.ZeroCentralPixel( );
         template_reconstruction.SwapRealSpaceQuadrants( );
 
 
-        for ( defocus_i = -myroundint(float(defocus_search_range) / float(defocus_step)); defocus_i <= myroundint(float(defocus_search_range) / float(defocus_step)); defocus_i++ ) {
+
 
             // make the projection filter, which will be CTF * whitening filter
-            input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
+            input_ctf.SetDefocus(defocus1  / pixel_size, defocus2 / pixel_size, deg_2_rad(defocus_angle));
             //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
             projection_filter.CalculateCTFImage(input_ctf);
             projection_filter.ApplyCurveFilter(&whitening_filter);
@@ -583,7 +588,7 @@ bool MatchTemplateApp::DoCalculation( ) {
 
         
 
-                    angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], current_psi, 0.0, 0.0);
+                    angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], global_euler_search.list_of_search_parameters[current_search_position][2], 0.0, 0.0);
                     //                    angles.Init(130.0, 30.0, 199.5, 0.0, 0.0);
 
                     if ( padding != 1.0f ) {
@@ -628,7 +633,8 @@ bool MatchTemplateApp::DoCalculation( ) {
                     // Note: the cross correlation will have variance 1/N (the product of variance of the two FFTs assuming the means are both zero and the distributions independent.)
                     // Taking the inverse FFT scales this variance by N resulting in a MIP with variance 1
                     padded_reference.BackwardFFT( );
-
+                    padded_reference.Resize(original_input_image_x, original_input_image_y, 1);
+                    padded_reference.WriteSlice(&cc_output, current_search_position);
 
                    
                     current_projection.is_in_real_space = false;
@@ -636,9 +642,12 @@ bool MatchTemplateApp::DoCalculation( ) {
 
 
                 
-            }
-        }
+            
+        
+ 
     }
+                cc_output.SetPixelSize(pixel_size);
+                cc_output.WriteHeader( );
 
     wxPrintf("\n\n\tTimings: Overall: %s\n", (wxDateTime::Now( ) - overall_start).Format( ));
 
