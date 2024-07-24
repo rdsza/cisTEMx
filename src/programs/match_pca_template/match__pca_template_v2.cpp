@@ -83,7 +83,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     wxString correlation_std_output_file;
     wxString correlation_avg_output_file;
     wxString scaled_mip_output_file;
-    wxString healpix_file;
+    wxString starfile_file;
     wxString coords_to_track_file;
 
     float pixel_size              = 1.0f;
@@ -159,7 +159,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 #endif
 
 #ifdef MEDIAN_FILTER_TEST
-    healpix_file         = my_input->GetFilenameFromUser("Healpix region segment file", "File containing the Phi and Theta values for search", "orientations.txt", false);
+    starfile_file         = my_input->GetFilenameFromUser("Starfile", "File containing the Phi and Theta and Psi values for search", "orientations.txt", false);
     coords_to_track_file = my_input->GetFilenameFromUser("Text file with x,y coordinates to track across full search", "File containing the x,y coordinates to track", "none", false);
 #endif
     int   first_search_position           = -1;
@@ -222,7 +222,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
                                       max_threads
 #ifdef MEDIAN_FILTER_TEST
                                       ,
-                                      healpix_file.ToUTF8( ).data( ),
+                                      starfile_file.ToUTF8( ).data( ),
                                       coords_to_track_file.ToUTF8( ).data( ));
 #else
     );
@@ -287,7 +287,7 @@ bool MatchTemplateApp::DoCalculation( ) {
 #ifdef MEDIAN_FILTER_TEST
     // The median filter test is only setup to work single threaded.
     MyAssertFalse(max_threads > 1, "The median filter test is only setup to work single threaded.");
-    wxString healpix_file = my_current_job.arguments[42].ReturnStringArgument( );
+    wxString starfile_file = my_current_job.arguments[42].ReturnStringArgument( );
     // List of x,y logical coordinates to save all ccf, abs_dev, med_abs_dev.
     // There is no check on memory limits. You will need N_pixels * 2 bytes * 6 extra gpu memory for this.
     bool     track_pixels_across_search = false;
@@ -369,7 +369,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     //RD: for counting the lines in the file and assigning the Float array global_euler_search.list_of_search_parameters
     int number_of_search_positions = 0;
     //RD : To open the text file containing the orientations from Healpix
-    NumericTextFile healpix_binning(healpix_file, OPEN_TO_READ, 0);
+    NumericTextFile starfile_binning(starfile_file, OPEN_TO_READ, 0);
     NumericTextFile pixel_file;
 #endif
     ImageFile input_search_image_file;
@@ -593,25 +593,27 @@ bool MatchTemplateApp::DoCalculation( ) {
 #ifdef MEDIAN_FILTER_TEST
 
     // Changing the following 2024-4-5 Bah
-    // float orientations[healpix_binning.number_of_lines];
+    // float orientations[starfile_binning.number_of_lines];
 
     // This is no good for two reasons:
     // 1) you are allocating an array on the stack which does work for some compilers, but not all. It is generally considered that the
     // size of a stack allocated array should be known at compile time.
     // 2) even if you knew the size, you are allocating an array that is the size of the file, but what you want is an array
     // that has the same number of records per line. These sort of details make or break c++ code.
-    std::vector<float> orientations(healpix_binning.records_per_line);
+    std::vector<float> orientations(starfile_binning.records_per_line);
 
-    number_of_search_positions                     = healpix_binning.number_of_lines;
+    number_of_search_positions                     = starfile_binning.number_of_lines;
     global_euler_search.number_of_search_positions = number_of_search_positions;
     Allocate2DFloatArray(global_euler_search.list_of_search_parameters, number_of_search_positions, 2);
 
-    for ( int counter = 0; counter < healpix_binning.number_of_lines; counter++ ) {
-        healpix_binning.ReadLine(orientations.data( ));
+    for ( int counter = 0; counter < starfile_binning.number_of_lines; counter++ ) {
+        starfile_binning.ReadLine(orientations.data( ));
         global_euler_search.list_of_search_parameters[counter][0] = orientations.at(0);
         global_euler_search.list_of_search_parameters[counter][1] = orientations.at(1);
+        global_euler_search.list_of_search_parameters[counter][2] = orientations.at(2);
+        
     }
-    healpix_binning.Close( );
+    starfile_binning.Close( );
 
     // We'll track the ccf, absolute deviation, and median absolute deviation for one pixel requested in the numeric text file.
     std::vector<float> ccf_abs_dev_med_abs_dev(number_of_search_positions * 3);
@@ -919,7 +921,7 @@ bool MatchTemplateApp::DoCalculation( ) {
                 //current_rotation = 0;
                 for ( current_psi = psi_start; current_psi <= psi_max; current_psi += psi_step ) {
 
-                    angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], current_psi, 0.0, 0.0);
+                    angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], global_euler_search.list_of_search_parameters[2], 0.0, 0.0);
                     //                    angles.Init(130.0, 30.0, 199.5, 0.0, 0.0);
 
                     if ( padding != 1.0f ) {
