@@ -463,9 +463,9 @@ bool MatchTemplateApp::DoCalculation( ) {
         global_euler_search.list_of_search_parameters[counter][0] = orientations.at(2);
     }
     starfile_binning.Close( );
-        global_euler_search.list_of_search_parameters[0][2] = 213;
-        global_euler_search.list_of_search_parameters[0][1] = 102.5;
-        global_euler_search.list_of_search_parameters[0][0] = 20.42;
+        global_euler_search.list_of_search_parameters[0][2] = 72.0;
+        global_euler_search.list_of_search_parameters[0][1] = 0.0;
+        global_euler_search.list_of_search_parameters[0][0] = .887275;
     
 
 
@@ -513,15 +513,6 @@ bool MatchTemplateApp::DoCalculation( ) {
 
 
 
-    if ( defocus_step <= 0.0 ) {
-        defocus_search_range = 0.0f;
-        defocus_step         = 100.0f;
-    }
-
-    if ( pixel_size_step <= 0.0f ) {
-        pixel_size_search_range = 0.0f;
-        pixel_size_step         = 0.02f;
-    }
 
     total_correlation_positions = number_of_search_positions ;
     total_correlation_positions_per_thread = total_correlation_positions;

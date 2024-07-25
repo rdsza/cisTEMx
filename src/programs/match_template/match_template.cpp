@@ -670,6 +670,10 @@ bool MatchTemplateApp::DoCalculation( ) {
         my_progress = new ProgressBar(total_correlation_positions_per_thread);
     }
 
+MRCFile cc_output;
+wxString cc_output_file = "testing.mrc";
+cc_output.OpenFile(cc_output_file.ToStdString( ), true);
+
     //    wxPrintf("Starting job\n");
     for ( size_i = -myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i <= myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i++ ) {
 
@@ -796,7 +800,8 @@ bool MatchTemplateApp::DoCalculation( ) {
 
                     angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], current_psi, 0.0, 0.0);
                     //                    angles.Init(130.0, 30.0, 199.5, 0.0, 0.0);
-
+                    wxPrintf("Angles: %f, %f, %f", global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], current_psi);
+                    
                     if ( padding != 1.0f ) {
                         template_reconstruction.ExtractSlice(padded_projection, angles, 1.0f, false);
                         padded_projection.SwapRealSpaceQuadrants( );
@@ -839,6 +844,13 @@ bool MatchTemplateApp::DoCalculation( ) {
                     // Note: the cross correlation will have variance 1/N (the product of variance of the two FFTs assuming the means are both zero and the distributions independent.)
                     // Taking the inverse FFT scales this variance by N resulting in a MIP with variance 1
                     padded_reference.BackwardFFT( );
+                    padded_reference.Resize(original_input_image_x, original_input_image_y, 1);
+                    padded_reference.MultiplyByConstant((float)sqrt_input_pixels);
+                    padded_reference.WriteSlice(&cc_output, current_search_position +1);
+                    cc_output.SetPixelSize(pixel_size);
+                    cc_output.WriteHeader( );
+
+                    wxPrintf("kill");
 
                     // update mip, and histogram..
                     pixel_counter = 0;
@@ -898,7 +910,9 @@ bool MatchTemplateApp::DoCalculation( ) {
                         JobResult* temp_result = new JobResult;
                         temp_result->SetResult(1, &temp_float);
                         AddJobToResultQueue(temp_result);
+              
                     }
+
                 }
             }
         }
