@@ -42,7 +42,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     wxString correlation_std_output_file="";
     wxString correlation_avg_output_file="";
     wxString scaled_mip_output_file="";
-    wxString starfile_file = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/peak_angles.txt";
+    wxString starfile_file = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/97_peaks.txt";
 
 
     float pixel_size              = 1.5f;
@@ -452,8 +452,9 @@ bool MatchTemplateApp::DoCalculation( ) {
     std::vector<float> orientations(starfile_binning.records_per_line);
 
     number_of_search_positions                     = starfile_binning.number_of_lines;
+    wxPrintf("Number of searches: %i", number_of_search_positions  );
     global_euler_search.number_of_search_positions = number_of_search_positions;
-    Allocate2DFloatArray(global_euler_search.list_of_search_parameters, number_of_search_positions, 2);
+    Allocate2DFloatArray(global_euler_search.list_of_search_parameters, number_of_search_positions, 3);
 
     for ( int counter = 0; counter < starfile_binning.number_of_lines; counter++ ) {
         starfile_binning.ReadLine(orientations.data( ));
@@ -501,14 +502,14 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     // count total searches (lazy)
 
-    total_correlation_positions  = 92;
+    total_correlation_positions  = number_of_search_positions ;
     current_correlation_position = 0;
 
     // if running locally, search over all of them
 
   
         first_search_position = 0;
-        last_search_position  = 91;
+        last_search_position  = number_of_search_positions   -1;
 
 
 
@@ -522,14 +523,12 @@ bool MatchTemplateApp::DoCalculation( ) {
         pixel_size_step         = 0.02f;
     }
 
-    total_correlation_positions = 92;
+    total_correlation_positions = number_of_search_positions ;
     total_correlation_positions_per_thread = total_correlation_positions;
 
     number_of_rotations = 0;
 
-    for ( current_psi = psi_start; current_psi <= psi_max; current_psi += psi_step ) {
-        number_of_rotations++;
-    }
+
 
     ProgressBar* my_progress;
 
@@ -537,7 +536,7 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     wxPrintf("\n\tFor image id %i\n", image_number_for_gui);
     wxPrintf("Searching %i positions on the Euler sphere (first-last: %i-%i)\n", last_search_position - first_search_position, first_search_position, last_search_position);
-    wxPrintf("Searching %i rotations per position.\n", number_of_rotations);
+    // wxPrintf("Searching %i rotations per position.\n", number_of_rotations);
     wxPrintf("There are %li correlation positions total.\n\n", total_correlation_positions);
 
     wxPrintf("Performing Search...\n\n");
@@ -633,7 +632,7 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
 
 
                 
-                wxPrintf("\n\n\tTimings: Overall: %i\n", current_search_position);
+                wxPrintf("\n\n\tIteration: %i\n", current_search_position);
  
         
 
