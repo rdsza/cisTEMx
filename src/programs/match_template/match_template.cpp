@@ -671,7 +671,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     }
 
 MRCFile cc_output;
-wxString cc_output_file = "testing.mrc";
+wxString cc_output_file = "testing_work.mrc";
 cc_output.OpenFile(cc_output_file.ToStdString( ), true);
 
     //    wxPrintf("Starting job\n");
@@ -797,7 +797,9 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
 
                 //current_rotation = 0;
                 for ( current_psi = psi_start; current_psi <= psi_max; current_psi += psi_step ) {
-
+        current_psi = 213.0;
+        global_euler_search.list_of_search_parameters[0][1] = 102.5;
+        global_euler_search.list_of_search_parameters[0][0] = 20.421875;
                     angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], current_psi, 0.0, 0.0);
                     //                    angles.Init(130.0, 30.0, 199.5, 0.0, 0.0);
                     wxPrintf("Angles: %f, %f, %f", global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], current_psi);
@@ -851,6 +853,7 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
                     cc_output.WriteHeader( );
 
                     wxPrintf("kill");
+                    return true;
 
                     // update mip, and histogram..
                     pixel_counter = 0;
