@@ -462,7 +462,9 @@ bool MatchTemplateApp::DoCalculation( ) {
         global_euler_search.list_of_search_parameters[counter][0] = orientations.at(2);
     }
     starfile_binning.Close( );
-
+        global_euler_search.list_of_search_parameters[0][2] = 213;
+        global_euler_search.list_of_search_parameters[0][1] = 102.5;
+        global_euler_search.list_of_search_parameters[0][0] = 20.42;
     
 
 
@@ -622,6 +624,7 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
                     // Taking the inverse FFT scales this variance by N resulting in a MIP with variance 1
                     padded_reference.BackwardFFT( );
                     padded_reference.Resize(original_input_image_x, original_input_image_y, 1);
+                    padded_reference.MultiplyByConstant((float)sqrt_input_pixels);
                     padded_reference.WriteSlice(&cc_output, current_search_position +1);
 
                    
