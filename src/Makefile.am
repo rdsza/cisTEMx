@@ -320,6 +320,7 @@ bin_PROGRAMS =  cisTEM_job_control \
                 match_pca_template \
                 match_pca_template_v2 \
                 match_pca_template_v3 \
+                match_template_original \
                 normalize_stack \
                 print_stack_statistics \
                 combine_stacks_by_star \
@@ -865,6 +866,11 @@ match_pca_template_v3_SOURCES  = programs/match_pca_template/match_pca_template_
 match_pca_template_v3_CXXFLAGS = $(WX_CPPFLAGS_BASE)
 match_pca_template_v3_CPPFLAGS = $(WX_CPPFLAGS_BASE)
 match_pca_template_v3_LDADD    = libcore.a $(WX_LIBS_BASE)
+
+match_template_original_SOURCES  = programs/match_template/match_template_original.cpp
+match_template_original_CXXFLAGS = $(WX_CPPFLAGS_BASE)
+match_template_original_CPPFLAGS = $(WX_CPPFLAGS_BASE)
+match_template_original_LDADD    = libcore.a $(WX_LIBS_BASE)
 
 multiply_two_stacks_SOURCES  = programs/multiply_two_stacks/multiply_two_stacks.cpp
 multiply_two_stacks_CXXFLAGS = $(WX_CPPFLAGS_BASE)
