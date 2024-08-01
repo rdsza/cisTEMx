@@ -734,14 +734,14 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
             wxPrintf("Defocus 1: %f, Defocus 2: %f",(defocus1 + float(defocus_i) * defocus_step)/ pixel_size, (defocus2 + float(defocus_i) * defocus_step)/pixel_size);
             projection_filter.CalculateCTFImage(input_ctf);
             projection_filter.ApplyCurveFilter(&whitening_filter);
-            MRCFile projection_output;
-wxString projection_output_file = "correct__1_projection.mrc";
-projection_output.OpenFile(projection_output_file.ToStdString( ), true);
-template_reconstruction.WriteSlice(&projection_output, 1);
-return true;
+//             MRCFile projection_output;
+// wxString projection_output_file = "correct__1_projection.mrc";
+// projection_output.OpenFile(projection_output_file.ToStdString( ), true);
+// template_reconstruction.WriteSlice(&projection_output, 1);
+// return true;
 
 
-            return true;
+
 
             //            projection_filter.QuickAndDirtyWriteSlices("/tmp/projection_filter.mrc",1,projection_filter.logical_z_dimension,true,1.5);
             if ( use_gpu ) {
@@ -804,25 +804,26 @@ return true;
 #endif
             }
             
-MRCFile template_output;
-wxString template_output_file = "correct_1_template.mrc";
-template_output.OpenFile(template_output_file.ToStdString( ), true);
+// MRCFile template_output;
+// wxString template_output_file = "correct_1_template.mrc";
+// template_output.OpenFile(template_output_file.ToStdString( ), true);
 
-MRCFile current_output;
-wxString current_output_file = "correct_1_current.mrc";
-current_output.OpenFile(current_output_file.ToStdString( ), true);
+// MRCFile current_output;
+// wxString current_output_file = "correct_1_current.mrc";
+// current_output.OpenFile(current_output_file.ToStdString( ), true);
 
             for ( current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
                 //loop over each rotation angle
 
                 //current_rotation = 0;
                 for ( current_psi = psi_start; current_psi <= psi_max; current_psi += psi_step ) {
-        current_psi = 297.75;
-        global_euler_search.list_of_search_parameters[0][1] = 50;
-        global_euler_search.list_of_search_parameters[0][0] = 274.0;
+        // current_psi = 297.75;
+        // global_euler_search.list_of_search_parameters[0][1] = 50;
+        // global_euler_search.list_of_search_parameters[0][0] = 325.0;
 
-                    angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], current_psi, 0.0, 0.0);
+        //             angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], current_psi, 0.0, 0.0);
                     //                    angles.Init(130.0, 30.0, 199.5, 0.0, 0.0);
+                    angles.Init(297.75, 50.0, 325.0, 0.0 ,0.0);
                     wxPrintf("Angles: %f, %f, %f", global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], current_psi);
                     
                     if ( padding != 1.0f ) {
@@ -836,7 +837,7 @@ current_output.OpenFile(current_output_file.ToStdString( ), true);
                         template_reconstruction.ExtractSlice(current_projection, angles, 1.0f, false);
                         current_projection.SwapRealSpaceQuadrants( );
                     }
-template_reconstruction.WriteSlice(&template_output, current_search_position +1);
+// template_reconstruction.WriteSlice(&template_output, current_search_position +1);
                     current_projection.MultiplyPixelWise(projection_filter);
 
                     current_projection.BackwardFFT( );
@@ -848,7 +849,7 @@ template_reconstruction.WriteSlice(&template_output, current_search_position +1)
                     variance = current_projection.ReturnSumOfSquares( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels - powf(current_projection.ReturnAverageOfRealValues( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels, 2);
                     current_projection.DivideByConstant(sqrtf(variance));
                     current_projection.ClipIntoLargerRealSpace2D(&padded_reference);
-current_projection.WriteSlice(&current_output, current_search_position +1);
+// current_projection.WriteSlice(&current_output, current_search_position +1);
                     // Note: The real space variance is set to 1.0 (for the padded size image) and that results in a variance of N in the FFT do to the scaling of the FFT,
                     // but the FFT values are divided by 1/N so the variance becomes N / (N^2) = is 1/N
                     padded_reference.ForwardFFT( );
@@ -867,14 +868,14 @@ current_projection.WriteSlice(&current_output, current_search_position +1);
                     // Note: the cross correlation will have variance 1/N (the product of variance of the two FFTs assuming the means are both zero and the distributions independent.)
                     // Taking the inverse FFT scales this variance by N resulting in a MIP with variance 1
                     padded_reference.BackwardFFT( );
-                    padded_reference.Resize(original_input_image_x, original_input_image_y, 1);
-                    padded_reference.MultiplyByConstant((float)sqrt_input_pixels);
-                    padded_reference.WriteSlice(&cc_output, current_search_position +1);
-                    cc_output.SetPixelSize(pixel_size);
-                    cc_output.WriteHeader( );
+                    // padded_reference.Resize(original_input_image_x, original_input_image_y, 1);
+                    // padded_reference.MultiplyByConstant((float)sqrt_input_pixels);
+                    // padded_reference.WriteSlice(&cc_output, current_search_position +1);
+                    // cc_output.SetPixelSize(pixel_size);
+                    // cc_output.WriteHeader( );
 
-                    wxPrintf("kill");
-                    return true;
+                    // wxPrintf("kill");
+                    // return true;
 
                     // update mip, and histogram..
                     pixel_counter = 0;
@@ -919,7 +920,8 @@ current_projection.WriteSlice(&current_output, current_search_position +1);
                         correlation_pixel_sum_of_squares[pixel_counter] += padded_reference.real_values[pixel_counter];
                     }
 
-                    //max_intensity_projection.QuickAndDirtyWriteSlice("/tmp/mip.mrc", 1);
+                    max_intensity_projection.QuickAndDirtyWriteSlice("./temp_mip_4.mrc", 1);
+                    return true;
 
                     current_projection.is_in_real_space = false;
                     padded_reference.is_in_real_space   = true;

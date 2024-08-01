@@ -42,7 +42,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     wxString correlation_std_output_file="";
     wxString correlation_avg_output_file="";
     wxString scaled_mip_output_file="";
-    wxString starfile_file = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/97_peaks.txt";
+    wxString starfile_file = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/peak_angles.txt";
 
 
     float pixel_size              = 1.5f;
@@ -72,8 +72,8 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 
     UserInput* my_input = new UserInput("MatchTemplate", 1.00);
 
-    // input_search_images         = my_input->GetFilenameFromUser("Input images to be searched", "The input image stack, containing the images that should be searched", "image_stack.mrc", true);
-    // input_reconstruction        = my_input->GetFilenameFromUser("Input template reconstruction", "The 3D reconstruction from which projections are calculated", "reconstruction.mrc", true);
+    input_search_images         = my_input->GetFilenameFromUser("Input images to be searched", "The input image stack, containing the images that should be searched", "image_stack.mrc", true);
+    input_reconstruction        = my_input->GetFilenameFromUser("Input template reconstruction", "The 3D reconstruction from which projections are calculated", "reconstruction.mrc", true);
     // mip_output_file             = my_input->GetFilenameFromUser("Output MIP file", "The file for saving the maximum intensity projection image", "mip.mrc", false);
     // scaled_mip_output_file      = my_input->GetFilenameFromUser("Output Scaled MIP file", "The file for saving the maximum intensity projection image divided by correlation variance", "mip_scaled.mrc", false);
     // best_psi_output_file        = my_input->GetFilenameFromUser("Output psi file", "The file for saving the best psi image", "psi.mrc", false);
@@ -385,8 +385,10 @@ bool MatchTemplateApp::DoCalculation( ) {
     }
 
     padded_reference.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+  
     
     padded_reference.SetToConstant(0.0f);
+
 
 
 
@@ -458,14 +460,12 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     for ( int counter = 0; counter < starfile_binning.number_of_lines; counter++ ) {
         starfile_binning.ReadLine(orientations.data( ));
-        global_euler_search.list_of_search_parameters[counter][2] = orientations.at(0);
+        global_euler_search.list_of_search_parameters[counter][0] = orientations.at(0);
         global_euler_search.list_of_search_parameters[counter][1] = orientations.at(1);
-        global_euler_search.list_of_search_parameters[counter][0] = orientations.at(2);
+        global_euler_search.list_of_search_parameters[counter][2] = orientations.at(2);
     }
     starfile_binning.Close( );
-        global_euler_search.list_of_search_parameters[0][2] = 297.75;
-        global_euler_search.list_of_search_parameters[0][1] = 50.0;
-        global_euler_search.list_of_search_parameters[0][0] = 274.0;
+
     
 
 
@@ -538,12 +538,6 @@ bool MatchTemplateApp::DoCalculation( ) {
     wxDateTime overall_finish;
     overall_start = wxDateTime::Now( );
 
-
-
-    if ( is_running_locally == true ) {
-        my_progress = new ProgressBar(total_correlation_positions_per_thread);
-    }
-
 cc_output.OpenFile(cc_output_file.ToStdString( ), true);
 
 
@@ -576,14 +570,18 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
 // MRCFile current_output;
 // wxString current_output_file = "incorrect__1_current.mrc";
 // current_output.OpenFile(current_output_file.ToStdString( ), true);
-            
+             std::string input_mrc_filename  = "/home/useradmin/Project_cisTEM/final_peak_template.mrc";
+             MRCFile mrc_file(input_mrc_filename);
+
             for ( current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
                 //loop over each rotation angle
 
-        
+       // wxPrintf("1");
 
-                    angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], global_euler_search.list_of_search_parameters[current_search_position][2], 0.0, 0.0);
+                    //angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], global_euler_search.list_of_search_parameters[current_search_position][2], 0.0, 0.0);
                     //                    angles.Init(130.0, 30.0, 199.5, 0.0, 0.0);
+                    angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], global_euler_search.list_of_search_parameters[current_search_position][2], 0.0 ,0.0);
+                    //angles.Init(297.75, 50.0, 325.0, 0.0 ,0.0);
 
                     if ( padding != 1.0f ) {
                         template_reconstruction.ExtractSlice(padded_projection, angles, 1.0f, false);
@@ -592,10 +590,24 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
                         padded_projection.ClipInto(&current_projection);
                         current_projection.ForwardFFT( );
                     }
+                   
+                   
                     else {
-                        template_reconstruction.ExtractSlice(current_projection, angles, 1.0f, false);
-                        current_projection.SwapRealSpaceQuadrants( );
+                        //wxPrintf("2");
+                        // template_reconstruction.ExtractSlice(current_projection, angles, 1.0f, false);
+                        // current_projection.SwapRealSpaceQuadrants( );
+                        // current_projection.BackwardFFT( );
+                        // current_projection.WriteSlice(&cc_output, current_search_position+1);
+                        // return true;
+                        // // continue;
+                        current_projection.ReadSlice(&mrc_file, current_search_position+1);
+                        current_projection.ForwardFFT(false );
+                        //current_projection.SwapRealSpaceQuadrants( );
+                        // current_projection.QuickAndDirtyWriteSlice("t4.mrc", current_search_position+1, pixel_size);
+                        //return true;
+                        
                     }
+
 //template_reconstruction.WriteSlice(&template_output, current_search_position +1);
                     current_projection.MultiplyPixelWise(projection_filter);
 
@@ -608,6 +620,7 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
                     variance = current_projection.ReturnSumOfSquares( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels - powf(current_projection.ReturnAverageOfRealValues( ) * current_projection.number_of_real_space_pixels / padded_reference.number_of_real_space_pixels, 2);
                     current_projection.DivideByConstant(sqrtf(variance));
                     current_projection.ClipIntoLargerRealSpace2D(&padded_reference);
+
 //current_projection.WriteSlice(&current_output, current_search_position +1);
                     // Note: The real space variance is set to 1.0 (for the padded size image) and that results in a variance of N in the FFT do to the scaling of the FFT,
                     // but the FFT values are divided by 1/N so the variance becomes N / (N^2) = is 1/N
@@ -627,17 +640,24 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
                     // Note: the cross correlation will have variance 1/N (the product of variance of the two FFTs assuming the means are both zero and the distributions independent.)
                     // Taking the inverse FFT scales this variance by N resulting in a MIP with variance 1
                     padded_reference.BackwardFFT( );
+
         // temp_image.CopyFrom(&padded_reference);
-        // temp_image.Resize(original_input_image_x, original_input_image_y, 1, temp_image.ReturnAverageOfRealValuesOnEdges( ));
-        // temp_image.QuickAndDirtyWriteSlice(cc_output_file.ToStdString( ), 1, pixel_size);
-                    padded_reference.Resize(original_input_image_x, original_input_image_y, 1);
-                    padded_reference.MultiplyByConstant((float)sqrt_input_pixels);
-                    padded_reference.WriteSlice(&cc_output, current_search_position +1);
+        // temp_image.Resize(original_input_image_x, original_input_image_y, current_search_position+1, 1);
+        // temp_image.QuickAndDirtyWriteSlice(cc_output_file.ToStdString( ), current_search_position+1, pixel_size);
+                    // padded_reference.Resize(original_input_image_x, original_input_image_y, 1);
+                    // padded_reference.MultiplyByConstant((float)sqrt_input_pixels);
+                    // padded_reference.WriteSlice(&cc_output, current_search_position +1);
+
+
+                   padded_reference.WriteSlice(&cc_output, current_search_position+1);
+                   return true;
+                  
+
 
                    
                     current_projection.is_in_real_space = false;
                     padded_reference.is_in_real_space   = true;
-return true;
+
 
                 
                 wxPrintf("\n\n\tIteration: %i\n", current_search_position);
@@ -647,8 +667,8 @@ return true;
     }
         wxPrintf("\n\n\tTimings: Overall: %s\n", (wxDateTime::Now( ) - overall_start).Format( ));
  
-                cc_output.SetPixelSize(pixel_size);
-                cc_output.WriteHeader( );
+                // cc_output.SetPixelSize(pixel_size);
+                // cc_output.WriteHeader( );
 
 
 
