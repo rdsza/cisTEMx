@@ -572,11 +572,11 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
 // MRCFile current_output;
 // wxString current_output_file = "incorrect__1_current.mrc";
 // current_output.OpenFile(current_output_file.ToStdString( ), true);
-            std::string input_mrc_filename  = "/home/useradmin/Project_cisTEM/all_peaks.mrc";
+            std::string input_mrc_filename  = "/home/useradmin/Project_cisTEM/PCA_15000_components_ribosome.mrc";
             MRCFile mrc_file(input_mrc_filename);
 
 
-            for ( current_search_position = 0; current_search_position <= mrc_file.ReturnNumberOfSlices( ); current_search_position++ ) {
+            for ( current_search_position = 0; current_search_position < 10; current_search_position++ ) {
                 //loop over each rotation angle
 
         //wxPrintf("1");
@@ -604,7 +604,7 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
                         //continue;
                         current_projection.ReadSlice(&mrc_file, current_search_position+1);
                         current_projection.ForwardFFT(false );
-                        current_projection.SwapRealSpaceQuadrants( );
+                        //current_projection.SwapRealSpaceQuadrants( );
                         // current_projection.QuickAndDirtyWriteSlice("t4.mrc", current_search_position+1, pixel_size);
                         //return true;
                         
@@ -667,7 +667,7 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
                     }
                  
                  
-                padded_reference.WriteSlice(&cc_output, current_search_position+1);
+                //padded_reference.WriteSlice(&cc_output, current_search_position+1);
                 //    return true;
                   
 
@@ -695,7 +695,7 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
 
 
         temp_image.CopyFrom(&max_intensity_projection);
-        temp_image.Resize(original_input_image_x, original_input_image_y, 1, temp_image.ReturnAverageOfRealValuesOnEdges( ));
+        //temp_image.Resize(original_input_image_x, original_input_image_y, 1, temp_image.ReturnAverageOfRealValuesOnEdges( ));
         temp_image.QuickAndDirtyWriteSlice(mip_output_file.ToStdString( ), 1, pixel_size);
 
     return true;

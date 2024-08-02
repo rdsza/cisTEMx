@@ -43,6 +43,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     wxString correlation_avg_output_file="";
     wxString scaled_mip_output_file="";
     wxString starfile_file = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/peak_angles.txt";
+    wxString input_mrc_filename = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/all_peaks.mrc";
 
 
     float pixel_size              = 1.5f;
@@ -108,8 +109,9 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 
 
     // starfile_file         = my_input->GetFilenameFromUser("Starfile", "File containing the Phi and Theta and Psi values for search", "orientations.txt", false);
-    cc_output_file            = my_input->GetFilenameFromUser("Output cross correlation filename","", "output_cc.mrc", false);
 
+    cc_output_file            = my_input->GetFilenameFromUser("Output cross correlation filename","", "output_cc.mrc", false);
+    input_mrc_filename  =        my_input->GetFilenameFromUser("Input MRC filename","", "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/all_peaks.mrc", false);
 
     int   first_search_position           = -1;
     int   last_search_position            = -1;
@@ -121,7 +123,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     wxString result_filename       = "/dev/null"; // shouldn't be used in interactive
 
     delete my_input;
-    const char* jop_code_arg_string = "ttffffffffffifffffbfftttttttttftiiiitttfbitt";
+    const char* jop_code_arg_string = "ttffffffffffifffffbfftttttttttftiiiitttfbittt";
     my_current_job.ManualSetArguments(jop_code_arg_string, input_search_images.ToUTF8( ).data( ),
                                       input_reconstruction.ToUTF8( ).data( ),
                                       pixel_size,
@@ -166,7 +168,8 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
                                       max_threads
                                       ,
                                       starfile_file.ToUTF8( ).data( ),
-                                      cc_output_file.ToUTF8( ).data( ));
+                                      cc_output_file.ToUTF8( ).data( ),
+                                      input_mrc_filename.ToUTF8( ).data( ));
 }
 
 // override the do calculation method which will be what is actually run..
@@ -221,6 +224,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     int      max_threads                     = my_current_job.arguments[41].ReturnIntegerArgument( );
     wxString starfile_file = my_current_job.arguments[42].ReturnStringArgument( );
     wxString  cc_output_file = my_current_job.arguments[43].ReturnStringArgument( );
+    wxString  input_mrc_filename = my_current_job.arguments[44].ReturnStringArgument( );
 
 
 
@@ -570,8 +574,8 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
 // MRCFile current_output;
 // wxString current_output_file = "incorrect__1_current.mrc";
 // current_output.OpenFile(current_output_file.ToStdString( ), true);
-             std::string input_mrc_filename  = "/home/useradmin/Project_cisTEM/final_peak_template.mrc";
-             MRCFile mrc_file(input_mrc_filename);
+             //input_mrc_filename  = "/home/useradmin/Match_PCA_template_repo/cisTEM/src/programs/match_pca_template/Reconstructed_15000_components_ribosome.mrc";
+             MRCFile mrc_file(input_mrc_filename.ToStdString( ));
 
             for ( current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
                 //loop over each rotation angle
@@ -645,17 +649,17 @@ cc_output.OpenFile(cc_output_file.ToStdString( ), true);
         // temp_image.Resize(original_input_image_x, original_input_image_y, current_search_position+1, 1);
         // temp_image.QuickAndDirtyWriteSlice(cc_output_file.ToStdString( ), current_search_position+1, pixel_size);
                     // padded_reference.Resize(original_input_image_x, original_input_image_y, 1);
-                    // padded_reference.MultiplyByConstant((float)sqrt_input_pixels);
+                     padded_reference.MultiplyByConstant((float)sqrt_input_pixels);
                     // padded_reference.WriteSlice(&cc_output, current_search_position +1);
 
 
                    padded_reference.WriteSlice(&cc_output, current_search_position+1);
-                   return true;
+                   //return true;
                   
 
 
                    
-                    current_projection.is_in_real_space = false;
+                    current_projection.is_in_real_space = true;
                     padded_reference.is_in_real_space   = true;
 
 
