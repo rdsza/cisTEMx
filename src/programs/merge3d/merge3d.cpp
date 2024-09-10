@@ -202,13 +202,13 @@ bool Merge3DApp::DoCalculation( ) {
     // run the bash script
     wxPrintf("Running Blush...\n");
     wxPrintf("For Halfset 1...\n");
-    wxString execution_command;
-    execution_command = wxString::Format("/data/blush_tests/run_blush.sh %s %s", "halfset1.mrc","halfset1_blushed.mrc");
-    system(execution_command.ToUTF8( ).data( ));
+    wxString execution_command1;
+    execution_command1 = wxString::Format("/data/blush_tests/run_blush.sh %s %s", "halfset1.mrc","halfset1_blushed.mrc");
+    system(execution_command1.ToUTF8( ).data( ));
     wxPrintf("For Halfset 2...\n");
-    wxString execution_command;
-    execution_command = wxString::Format("/data/blush_tests/run_blush.sh %s %s", "halfset2.mrc","halfset2_blushed.mrc");
-    system(execution_command.ToUTF8( ).data( ));
+    wxString execution_command2;
+    execution_command2 = wxString::Format("/data/blush_tests/run_blush.sh %s %s", "halfset2.mrc","halfset2_blushed.mrc");
+    system(execution_command2.ToUTF8( ).data( ));
     //read back
     MRCFile Blushed_halfset1("halfset1_blushed.mrc");
     MRCFile Blushed_halfset2("halfset2_blushed.mrc");
