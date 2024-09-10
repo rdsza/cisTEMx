@@ -200,9 +200,20 @@ bool Merge3DApp::DoCalculation( ) {
     output_3d2.density_map->WriteSlicesAndFillHeader("halfset2.mrc", original_pixel_size);
     // blush
     // run the bash script
+    wxPrintf("Running Blush...\n");
+    wxPrintf("For Halfset 1...\n");
+    wxString execution_command;
+    execution_command = wxString::Format("/data/blush_tests/run_blush.sh %s %s", "halfset1.mrc","halfset1_blushed.mrc");
+    system(execution_command.ToUTF8( ).data( ));
+    wxPrintf("For Halfset 2...\n");
+    wxString execution_command;
+    execution_command = wxString::Format("/data/blush_tests/run_blush.sh %s %s", "halfset2.mrc","halfset2_blushed.mrc");
+    system(execution_command.ToUTF8( ).data( ));
     //read back
-    output_3d1.density_map->ReadSlices("halfset1.mrc", original_pixel_size);
-    output_3d2.density_map->ReadSlices("halfset2.mrc", original_pixel_size);
+    MRCFile Blushed_halfset1("halfset1_blushed.mrc");
+    MRCFile Blushed_halfset2("halfset2_blushed.mrc");
+    output_3d1.density_map->ReadSlices(&Blushed_halfset1, 1, Blushed_halfset1.ReturnNumberOfSlices());
+    output_3d2.density_map->ReadSlices(&Blushed_halfset2, 1, Blushed_halfset2.ReturnNumberOfSlices());
 
 
     output_3d.FinalizeOptimal(my_reconstruction_1, output_3d1.density_map, output_3d2.density_map,
