@@ -196,8 +196,10 @@ bool Merge3DApp::DoCalculation( ) {
     my_reconstruction_2.FreeMemory( );
 
     // write out 3d1 and 3d2 
-    output_3d1.density_map->WriteSlicesAndFillHeader("halfset1.mrc", original_pixel_size);
-    output_3d2.density_map->WriteSlicesAndFillHeader("halfset2.mrc", original_pixel_size);
+    output_3d1.density_map->QuickAndDirtyWriteSlices("halfset1.mrc", 1, temp_reconstruction.logical_z_dimension);
+    output_3d2.density_map->QuickAndDirtyWriteSlices("halfset2.mrc", 1, temp_reconstruction.logical_z_dimension);
+    //local_resolution_volume.QuickAndDirtyWriteSlices(wxString::Format("/tmp/local_res_%i", int(current_res)).ToStdString( ), 1, local_resolution_volume.logical_z_dimension);
+    //output_3d2.density_map->WriteSlicesAndFillHeader("halfset2.mrc", original_pixel_size);
     // blush
     // run the bash script
     wxPrintf("Running Blush...\n");
