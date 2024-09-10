@@ -195,6 +195,16 @@ bool Merge3DApp::DoCalculation( ) {
     my_reconstruction_1 += my_reconstruction_2;
     my_reconstruction_2.FreeMemory( );
 
+    // write out 3d1 and 3d2 
+    output_3d1.density_map->WriteSlicesAndFillHeader("halfset1.mrc", original_pixel_size);
+    output_3d2.density_map->WriteSlicesAndFillHeader("halfset2.mrc", original_pixel_size);
+    // blush
+    // run the bash script
+    //read back
+    output_3d1.density_map->ReadSlices("halfset1.mrc", original_pixel_size);
+    output_3d2.density_map->ReadSlices("halfset2.mrc", original_pixel_size);
+
+
     output_3d.FinalizeOptimal(my_reconstruction_1, output_3d1.density_map, output_3d2.density_map,
                               original_pixel_size, pixel_size, inner_mask_radius, outer_mask_radius, mask_falloff,
                               center_mass, output_reconstruction_filtered, output_statistics_file, resolution_statistics, weiner_nominator);
