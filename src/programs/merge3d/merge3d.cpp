@@ -196,8 +196,8 @@ bool Merge3DApp::DoCalculation( ) {
     my_reconstruction_2.FreeMemory( );
 
     // write out 3d1 and 3d2 
-    output_3d1.density_map->QuickAndDirtyWriteSlices("halfset1.mrc", 1, temp_reconstruction.logical_z_dimension);
-    output_3d2.density_map->QuickAndDirtyWriteSlices("halfset2.mrc", 1, temp_reconstruction.logical_z_dimension);
+    output_3d1.density_map->QuickAndDirtyWriteSlices("halfset1.mrc", 1, output_3d1.density_map->logical_z_dimension);
+    output_3d2.density_map->QuickAndDirtyWriteSlices("halfset2.mrc", 1, output_3d1.density_map->logical_z_dimension);
     //local_resolution_volume.QuickAndDirtyWriteSlices(wxString::Format("/tmp/local_res_%i", int(current_res)).ToStdString( ), 1, local_resolution_volume.logical_z_dimension);
     //output_3d2.density_map->WriteSlicesAndFillHeader("halfset2.mrc", original_pixel_size);
     // blush
@@ -212,11 +212,14 @@ bool Merge3DApp::DoCalculation( ) {
     execution_command2 = wxString::Format("/data/blush_tests/run_blush.sh %s %s", "halfset2.mrc","halfset2_blushed.mrc");
     system(execution_command2.ToUTF8( ).data( ));
     //read back
-    MRCFile Blushed_halfset1("halfset1_blushed.mrc");
-    MRCFile Blushed_halfset2("halfset2_blushed.mrc");
-    output_3d1.density_map->ReadSlices(&Blushed_halfset1, 1, Blushed_halfset1.ReturnNumberOfSlices());
-    output_3d2.density_map->ReadSlices(&Blushed_halfset2, 1, Blushed_halfset2.ReturnNumberOfSlices());
-
+    //MRCFile Blushed_halfset1("halfset1_blushed.mrc");
+    //MRCFile Blushed_halfset2("halfset2_blushed.mrc");
+    output_3d1.density_map->QuickAndDirtyReadSlices("halfset1_blushed.mrc", 1, output_3d1.density_map->logical_z_dimension);
+    output_3d2.density_map->QuickAndDirtyReadSlices("halfset2_blushed.mrc", 1, output_3d2.density_map->logical_z_dimension);
+    output_3d1.FinalizeSimple(output_3d1.density_map, original_x_dimension, original_pixel_size, pixel_size,
+                              inner_mask_radius, outer_mask_radius, mask_falloff, output_reconstruction_1);
+    output_3d2.FinalizeSimple(output_3d2.density_map, original_x_dimension, original_pixel_size, pixel_size,
+                              inner_mask_radius, outer_mask_radius, mask_falloff, output_reconstruction_2);
 
     output_3d.FinalizeOptimal(my_reconstruction_1, output_3d1.density_map, output_3d2.density_map,
                               original_pixel_size, pixel_size, inner_mask_radius, outer_mask_radius, mask_falloff,
