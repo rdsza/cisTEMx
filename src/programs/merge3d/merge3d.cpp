@@ -89,6 +89,8 @@ bool Merge3DApp::DoCalculation( ) {
     ReconstructedVolume output_3d(molecular_mass_kDa);
     ReconstructedVolume output_3d1(molecular_mass_kDa);
     ReconstructedVolume output_3d2(molecular_mass_kDa);
+    ReconstructedVolume blush_vol_unfil(molecular_mass_kDa);
+    //ReconstructedVolume blush_result(molecular_mass_kDa);
 
     int        i;
     int        logical_x_dimension;
@@ -191,40 +193,32 @@ bool Merge3DApp::DoCalculation( ) {
     output_3d2.FinalizeSimple(my_reconstruction_2, original_x_dimension, original_pixel_size, pixel_size,
                               inner_mask_radius, outer_mask_radius, mask_falloff, output_reconstruction_2);
 
+
     output_3d.mask_volume_in_voxels = output_3d1.mask_volume_in_voxels;
+
     my_reconstruction_1 += my_reconstruction_2;
     my_reconstruction_2.FreeMemory( );
 
-    // write out 3d1 and 3d2 
-    output_3d1.density_map->QuickAndDirtyWriteSlices("halfset1.mrc", 1, output_3d1.density_map->logical_z_dimension);
-    output_3d2.density_map->QuickAndDirtyWriteSlices("halfset2.mrc", 1, output_3d1.density_map->logical_z_dimension);
-    //local_resolution_volume.QuickAndDirtyWriteSlices(wxString::Format("/tmp/local_res_%i", int(current_res)).ToStdString( ), 1, local_resolution_volume.logical_z_dimension);
-    //output_3d2.density_map->WriteSlicesAndFillHeader("halfset2.mrc", original_pixel_size);
-    // blush
-    // run the bash script
-    wxPrintf("Running Blush...\n");
-    wxPrintf("For Halfset 1...\n");
-    wxString execution_command1;
-    execution_command1 = wxString::Format("/data/blush_tests/run_blush.sh %s %s", "halfset1.mrc","halfset1_blushed.mrc");
-    system(execution_command1.ToUTF8( ).data( ));
-    wxPrintf("For Halfset 2...\n");
-    wxString execution_command2;
-    execution_command2 = wxString::Format("/data/blush_tests/run_blush.sh %s %s", "halfset2.mrc","halfset2_blushed.mrc");
-    system(execution_command2.ToUTF8( ).data( ));
-    //read back
-    //MRCFile Blushed_halfset1("halfset1_blushed.mrc");
-    //MRCFile Blushed_halfset2("halfset2_blushed.mrc");
-    output_3d1.density_map->QuickAndDirtyReadSlices("halfset1_blushed.mrc", 1, output_3d1.density_map->logical_z_dimension);
-    output_3d2.density_map->QuickAndDirtyReadSlices("halfset2_blushed.mrc", 1, output_3d2.density_map->logical_z_dimension);
-    output_3d1.FinalizeSimple(output_3d1.density_map, original_x_dimension, original_pixel_size, pixel_size,
-                              inner_mask_radius, outer_mask_radius, mask_falloff, output_reconstruction_1);
-    output_3d2.FinalizeSimple(output_3d2.density_map, original_x_dimension, original_pixel_size, pixel_size,
+    output_3d.FinalizeSimple(my_reconstruction_1, original_x_dimension, original_pixel_size, pixel_size,
                               inner_mask_radius, outer_mask_radius, mask_falloff, output_reconstruction_2);
 
-    output_3d.FinalizeOptimal(my_reconstruction_1, output_3d1.density_map, output_3d2.density_map,
-                              original_pixel_size, pixel_size, inner_mask_radius, outer_mask_radius, mask_falloff,
-                              center_mass, output_reconstruction_filtered, output_statistics_file, resolution_statistics, weiner_nominator);
+    output_3d.density_map->QuickAndDirtyWriteSlices("combined_unfil_recons.mrc", 1, output_3d1.density_map->logical_z_dimension);
 
+    wxPrintf("Running Blush...\n");
+
+    wxString execution_command1;
+    execution_command1 = wxString::Format("/data/blush_tests/run_blush.sh %s %s", "combined_unfil_recons.mrc", "blushed_vol.mrc"); //, measured_resolution, 120.0, original_pixel_size, "halfset1_blushed.mrc");
+    system(execution_command1.ToUTF8( ).data( ));
+
+    wxPrintf("BLUSH done ...\n");
+    Reconstruct3D blush_result;
+    blush_result.image_reconstruction->QuickAndDirtyReadSlices("blushed_vol.mrc", 1, output_3d1.density_map->logical_z_dimension);
+
+    //output_3d.density_map->ForwardFFT(true);
+
+    output_3d.FinalizeOptimalWithBlush(blush_result.image_reconstruction, output_3d1.density_map, output_3d2.density_map, original_pixel_size, pixel_size, inner_mask_radius, outer_mask_radius, mask_falloff,
+                              center_mass, output_reconstruction_filtered, output_statistics_file, resolution_statistics , weiner_nominator);
+    wxPrintf("finalize optimal with blush complete...\n");
     //float orientation_distribution_efficiency = output_3d.ComputeOrientationDistributionEfficiency(my_reconstruction_1);
     //SendInfo(wxString::Format("Orientation distribution efficiency: %0.2f\n",orientation_distribution_efficiency));
 

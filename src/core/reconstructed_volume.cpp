@@ -733,6 +733,117 @@ void ReconstructedVolume::FinalizeOptimal(Reconstruct3D& reconstruction, Image* 
     output_file.CloseFile( );
 }
 
+void ReconstructedVolume::FinalizeOptimalWithBlush(Reconstruct3D& reconstruction, Image* density_map_1, Image* density_map_2,
+                                          float& original_pixel_size, float& pixel_size, float& inner_mask_radius, float& outer_mask_radius, float& mask_falloff,
+                                          bool center_mass, wxString& output_volume, NumericTextFile& output_statistics, ResolutionStatistics* copy_of_statistics, float weiner_filter_nominator) {
+    int                  original_box_size     = density_map_1->logical_x_dimension;
+    int                  intermediate_box_size = myroundint(original_box_size / pixel_size * original_pixel_size);
+    int                  box_size              = reconstruction.logical_x_dimension;
+    float                binning_factor        = pixel_size / original_box_size;
+    float                particle_area_in_pixels;
+    float                mask_volume_fraction;
+    float                resolution_limit = 0.0;
+    float                temp_float;
+    MRCFile              output_file;
+    ResolutionStatistics statistics(original_pixel_size, original_box_size);
+    ResolutionStatistics cropped_statistics(pixel_size, box_size);
+    ResolutionStatistics temp_statistics(pixel_size, intermediate_box_size);
+    Peak                 center_of_mass;
+    wxChar               symmetry_type;
+    long                 symmetry_number;
+
+    if ( pixel_size != original_pixel_size )
+        resolution_limit = 2.0 * pixel_size;
+
+    statistics.CalculateFSC(*density_map_1, *density_map_2, true);
+    //density_map_1 = density_map_blush1;
+    //density_map_2 = density_map_blush2;
+    // TESTING OF LOCAL FILTERING
+    const bool test_locres_filtering = false;
+    if ( ! test_locres_filtering ) {
+        density_map_1->Deallocate( );
+        density_map_2->Deallocate( );
+    }
+
+    InitWithReconstruct3D(reconstruction, pixel_size);
+    statistics.CalculateParticleFSCandSSNR(mask_volume_in_voxels, molecular_mass_in_kDa);
+    particle_area_in_pixels = statistics.kDa_to_area_in_pixel(molecular_mass_in_kDa);
+    mask_volume_fraction    = mask_volume_in_voxels / particle_area_in_pixels / original_box_size;
+    if ( intermediate_box_size != box_size && binning_factor != 1.0 ) {
+        temp_statistics.CopyFrom(statistics);
+        cropped_statistics.ResampleFrom(temp_statistics);
+    }
+    else {
+        cropped_statistics.CopyFrom(statistics);
+    }
+    cropped_statistics.CalculateParticleSSNR(reconstruction.image_reconstruction, reconstruction.ctf_reconstruction, mask_volume_fraction);
+    if ( intermediate_box_size != box_size && binning_factor != 1.0 ) {
+        temp_statistics.ResampleParticleSSNR(cropped_statistics);
+        statistics.CopyParticleSSNR(temp_statistics);
+    }
+    else {
+        statistics.CopyParticleSSNR(cropped_statistics);
+    }
+    statistics.ZeroToResolution(resolution_limit);
+    statistics.PrintStatistics( );
+
+    statistics.WriteStatisticsToFile(output_statistics);
+    if ( copy_of_statistics != NULL ) {
+        copy_of_statistics->Init(original_pixel_size, original_box_size);
+        copy_of_statistics->CopyFrom(statistics);
+    }
+
+    Calculate3DOptimal(reconstruction, cropped_statistics, weiner_filter_nominator);
+    density_map->SwapRealSpaceQuadrants( );
+    // Check if cropping was used and resize reconstruction accordingly
+    if ( intermediate_box_size != box_size ) {
+        density_map->BackwardFFT( );
+        // Correct3D is necessary to correct the signal in the map but it also amplifies the noise. Try without this...
+        //Correct3D(outer_mask_radius / pixel_size);
+        // Scaling factor needed to compensate for FFT normalization for different box sizes
+        density_map->MultiplyByConstant(float(intermediate_box_size) / float(box_size));
+        density_map->Resize(intermediate_box_size, intermediate_box_size,
+                            intermediate_box_size, density_map->ReturnAverageOfRealValuesOnEdges( ));
+        density_map->ForwardFFT( );
+    }
+    // Check if binning was used and resize reconstruction accordingly
+    if ( pixel_size != original_pixel_size ) {
+        //		density_map->CosineMask(0.5 - pixel_size / 20.0, pixel_size / 10.0);
+        density_map->CosineMask(0.45, 0.1);
+        density_map->Resize(original_box_size, original_box_size, original_box_size);
+    }
+    else
+        density_map->CosineMask(0.45, 0.1);
+    //	else density_map->CosineMask(0.5, original_pixel_size / 10.0);
+    density_map->BackwardFFT( );
+    // Need to run Correct3D if cropping was not used
+    // Correct3D is necessary to correct the signal in the map but it also amplifies the noise. Try without this...
+    //if (intermediate_box_size == box_size) Correct3D(outer_mask_radius / original_pixel_size);
+    // Now we have a full-size map with the final pixel size. Applying mask and center map in box...
+    //	CosineRingMask(inner_mask_radius / original_pixel_size, outer_mask_radius / original_pixel_size, mask_falloff / original_pixel_size);
+    //	CosineMask(density_map->physical_address_of_box_center_x - 3.0 * mask_falloff / original_pixel_size, 3.0 * mask_falloff / original_pixel_size);
+    if ( center_mass ) {
+        //		temp_float = density_map->ReturnAverageOfRealValuesOnEdges();
+        temp_float     = density_map->ReturnAverageOfRealValues( );
+        center_of_mass = density_map->CenterOfMass(temp_float, true);
+        symmetry_type  = symmetry_symbol.Capitalize( )[0];
+        if ( symmetry_type == 'C' && center_of_mass.value > 0.0 ) {
+            symmetry_symbol.Mid(1).ToLong(&symmetry_number);
+            if ( symmetry_number < 2 )
+                density_map->RealSpaceIntegerShift(int(center_of_mass.x), int(center_of_mass.y), int(center_of_mass.z));
+            else
+                density_map->RealSpaceIntegerShift(0, 0, int(center_of_mass.z));
+        }
+    }
+    output_file.OpenFile(output_volume.ToStdString( ), true);
+    density_map->WriteSlices(&output_file, 1, density_map->logical_z_dimension);
+    output_file.SetPixelSize(original_pixel_size);
+    EmpiricalDistribution density_distribution;
+    density_map->UpdateDistributionOfRealValues(&density_distribution);
+    output_file.SetDensityStatistics(density_distribution.GetMinimum( ), density_distribution.GetMaximum( ), density_distribution.GetSampleMean( ), sqrtf(density_distribution.GetSampleVariance( )));
+    output_file.CloseFile( );
+}
+
 void ReconstructedVolume::FinalizeML(Reconstruct3D& reconstruction, Image* density_map_1, Image* density_map_2,
                                      float& original_pixel_size, float& pixel_size, float& inner_mask_radius, float& outer_mask_radius, float& mask_falloff,
                                      wxString& output_volume, NumericTextFile& output_statistics, ResolutionStatistics* copy_of_statistics) {
