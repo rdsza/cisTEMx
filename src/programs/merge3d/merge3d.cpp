@@ -211,12 +211,15 @@ bool Merge3DApp::DoCalculation( ) {
     system(execution_command1.ToUTF8( ).data( ));
 
     wxPrintf("BLUSH done ...\n");
-    Reconstruct3D blush_result(logical_x_dimension, logical_y_dimension, logical_z_dimension, pixel_size, average_occupancy, average_sigma, sigma_bfactor_conversion, my_symmetry);
-    blush_result.image_reconstruction.QuickAndDirtyReadSlices("blushed_vol.mrc", 1, output_3d1.density_map->logical_z_dimension);
+    //Reconstruct3D blush_result(logical_x_dimension, logical_y_dimension, logical_z_dimension, pixel_size, average_occupancy, average_sigma, sigma_bfactor_conversion, my_symmetry);
+    output_3d.density_map->QuickAndDirtyReadSlices("blushed_vol.mrc", 1, output_3d1.density_map->logical_z_dimension);
+    wxPrintf("BLUSH reading done ...\n");
+    //my_reconstruction_1.image_reconstruction.QuickAndDirtyWriteSlices("my_reconstruction_1.mrc", 1, my_reconstruction_1.image_reconstruction.logical_z_dimension);
+    //blush_result.image_reconstruction.QuickAndDirtyWriteSlices("Blush_volume_readin.mrc", 1, blush_result.image_reconstruction.logical_z_dimension);
+    //output_3d.InitWithReconstruct3D(blush_result);
+    output_3d.density_map->ForwardFFT(true);
 
-    //output_3d.density_map->ForwardFFT(true);
-
-    output_3d.FinalizeOptimalWithBlush(blush_result, output_3d1.density_map, output_3d2.density_map, original_pixel_size, pixel_size, inner_mask_radius, outer_mask_radius, mask_falloff,
+    output_3d.FinalizeOptimal(my_reconstruction_1, output_3d1.density_map, output_3d2.density_map, original_pixel_size, pixel_size, inner_mask_radius, outer_mask_radius, mask_falloff,
                               center_mass, output_reconstruction_filtered, output_statistics_file, resolution_statistics , weiner_nominator);
     wxPrintf("finalize optimal with blush complete...\n");
     //float orientation_distribution_efficiency = output_3d.ComputeOrientationDistributionEfficiency(my_reconstruction_1);

@@ -765,7 +765,7 @@ void ReconstructedVolume::FinalizeOptimalWithBlush(Reconstruct3D& reconstruction
         density_map_2->Deallocate( );
     }
 
-    InitWithReconstruct3D(reconstruction, pixel_size);
+    //InitWithReconstruct3D(reconstruction, pixel_size);
     statistics.CalculateParticleFSCandSSNR(mask_volume_in_voxels, molecular_mass_in_kDa);
     particle_area_in_pixels = statistics.kDa_to_area_in_pixel(molecular_mass_in_kDa);
     mask_volume_fraction    = mask_volume_in_voxels / particle_area_in_pixels / original_box_size;
@@ -792,8 +792,8 @@ void ReconstructedVolume::FinalizeOptimalWithBlush(Reconstruct3D& reconstruction
         copy_of_statistics->Init(original_pixel_size, original_box_size);
         copy_of_statistics->CopyFrom(statistics);
     }
-
-    Calculate3DOptimal(reconstruction, cropped_statistics, weiner_filter_nominator);
+    
+    //Calculate3DOptimal(reconstruction, cropped_statistics, weiner_filter_nominator);
     density_map->SwapRealSpaceQuadrants( );
     // Check if cropping was used and resize reconstruction accordingly
     if ( intermediate_box_size != box_size ) {
