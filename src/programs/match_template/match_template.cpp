@@ -1,5 +1,8 @@
 #include <cistem_config.h>
 
+// For testing define here
+#define LOCAL_NORMALIZATION
+
 #ifdef ENABLEGPU
 #include "../../gpu/gpu_core_headers.h"
 #include "../../gpu/DeviceManager.h"
@@ -80,6 +83,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     wxString correlation_std_output_file;
     wxString correlation_avg_output_file;
     wxString scaled_mip_output_file;
+    wxString healpix_file;
 
     float pixel_size              = 1.0f;
     float voltage_kV              = 300.0f;
@@ -147,10 +151,14 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 #else
     // Ensure we always have the same number of interactive inputs to make scripting more consistent.
     // (N\ot that it is likely to run match_template on the CPU)
-    use_gpu_input = my_input->GetYesNoFromUser("Use GPU", "Not compiled for gpu, input ignored.", "No");
-    max_threads   = my_input->GetIntFromUser("Max. threads to use for calculation", "Not compiled for gpu, input ignored.", "1", 1);
-    use_gpu_input = false;
-    max_threads   = 1;
+    use_gpu_input                   = my_input->GetYesNoFromUser("Use GPU", "Not compiled for gpu, input ignored.", "No");
+    max_threads                     = my_input->GetIntFromUser("Max. threads to use for calculation", "Not compiled for gpu, input ignored.", "1", 1);
+    use_gpu_input                   = false;
+    max_threads                     = 1;
+#endif
+
+#ifdef LOCAL_NORMALIZATION
+    healpix_file = my_input->GetFilenameFromUser("Healpix region file", "File containing the Phi and Theta values for search", "orientations.txt", false);
 #endif
 
     int   first_search_position           = -1;
@@ -164,7 +172,13 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 
     delete my_input;
 
-    my_current_job.ManualSetArguments("ttffffffffffifffffbfftttttttttftiiiitttfbi", input_search_images.ToUTF8( ).data( ),
+#ifdef LOCAL_NORMALIZATION
+    const char* job_code_arg_string = "ttffffffffffifffffbfftttttttttftiiiitttfbit";
+#else
+    const char* job_code_arg_string = "ttffffffffffifffffbfftttttttttftiiiitttfbi";
+#endif
+
+    my_current_job.ManualSetArguments(job_code_arg_string, input_search_images.ToUTF8( ).data( ),
                                       input_reconstruction.ToUTF8( ).data( ),
                                       pixel_size,
                                       voltage_kV,
@@ -205,7 +219,13 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
                                       result_filename.ToUTF8( ).data( ),
                                       min_peak_radius,
                                       use_gpu_input,
-                                      max_threads);
+                                      max_threads
+#ifdef LOCAL_NORMALIZATION
+                                      ,
+                                      healpix_file.ToUTF8( ).data( ));
+#else
+    );
+#endif
 }
 
 // override the do calculation method which will be what is actually run..
@@ -263,6 +283,9 @@ bool MatchTemplateApp::DoCalculation( ) {
     float    min_peak_radius                 = my_current_job.arguments[39].ReturnFloatArgument( );
     bool     use_gpu                         = my_current_job.arguments[40].ReturnBoolArgument( );
     int      max_threads                     = my_current_job.arguments[41].ReturnIntegerArgument( );
+#ifdef LOCAL_NORMALIZATION
+    wxString healpix_file = my_current_job.arguments[42].ReturnStringArgument( );
+#endif
 
     if ( is_running_locally == false )
         max_threads = number_of_threads_requested_on_command_line; // OVERRIDE FOR THE GUI, AS IT HAS TO BE SET ON THE COMMAND LINE...
@@ -331,6 +354,11 @@ bool MatchTemplateApp::DoCalculation( ) {
     EulerSearch     global_euler_search;
     AnglesAndShifts angles;
 
+#ifdef LOCAL_NORMALIZATION
+    int             number_of_search_positions = 0;
+    NumericTextFile healpix_binning(healpix_file, OPEN_TO_READ, 0);
+#endif
+
     ImageFile input_search_image_file;
     ImageFile input_reconstruction_file;
 
@@ -363,6 +391,11 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     Image correlation_pixel_sum_image;
     Image correlation_pixel_sum_of_squares_image;
+    //#ifdef LOCAL_NORMALIZATION
+    //    Image mean_image;
+    //    Image variance_image;
+    //    Image stddev_image;
+    //#endif
 
     Image temp_image;
 
@@ -432,6 +465,7 @@ bool MatchTemplateApp::DoCalculation( ) {
             input_reconstruction.Resize(input_reconstruction.logical_x_dimension * padding, input_reconstruction.logical_y_dimension * padding, input_reconstruction.logical_z_dimension * padding, input_reconstruction.ReturnAverageOfRealValuesOnEdges( ));
         }
 
+#ifndef LOCAL_NORMALIZATION
 #ifdef ROTATEFORSPEED
         if ( ! is_power_of_two(factorizable_x) && is_power_of_two(factorizable_y) ) {
             // The speedup in the FFT for better factorization is also dependent on the dimension. The full transform (in cufft anyway) is faster if the best dimension is on X.
@@ -453,6 +487,7 @@ bool MatchTemplateApp::DoCalculation( ) {
             is_rotated_by_90 = false;
         }
 #endif
+#endif
     }
 
     padded_reference.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
@@ -466,6 +501,16 @@ bool MatchTemplateApp::DoCalculation( ) {
     correlation_pixel_sum_of_squares_image.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     double* correlation_pixel_sum            = new double[input_image.real_memory_allocated];
     double* correlation_pixel_sum_of_squares = new double[input_image.real_memory_allocated];
+#ifdef LOCAL_NORMALIZATION
+    const int   BUFFER_SIZE       = 10;
+    const float OUTLIER_THRESHOLD = 3.0f;
+    // variables for Welford's algorithm
+    double* mean_image     = new double[input_image.real_memory_allocated];
+    double* M2_image       = new double[input_image.real_memory_allocated];
+    int*    n_image        = new int[input_image.real_memory_allocated];
+    double* variance_image = new double[input_image.real_memory_allocated];
+    double* stddev_image   = new double[input_image.real_memory_allocated];
+#endif
 
     padded_reference.SetToConstant(0.0f);
     max_intensity_projection.SetToConstant(-FLT_MAX);
@@ -476,6 +521,13 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     ZeroDoubleArray(correlation_pixel_sum, input_image.real_memory_allocated);
     ZeroDoubleArray(correlation_pixel_sum_of_squares, input_image.real_memory_allocated);
+#ifdef LOCAL_NORMALIZATION
+    ZeroDoubleArray(mean_image, input_image.real_memory_allocated);
+    ZeroDoubleArray(M2_image, input_image.real_memory_allocated);
+    ZeroIntArray(n_image, input_image.real_memory_allocated);
+    ZeroDoubleArray(variance_image, input_image.real_memory_allocated);
+    ZeroDoubleArray(stddev_image, input_image.real_memory_allocated);
+#endif
 
     sqrt_input_pixels = sqrt((double)(input_image.logical_x_dimension * input_image.logical_y_dimension));
 
@@ -533,6 +585,19 @@ bool MatchTemplateApp::DoCalculation( ) {
     // search grid
 
     global_euler_search.InitGrid(my_symmetry, angular_step, 0.0f, 0.0f, psi_max, psi_step, psi_start, pixel_size / high_resolution_limit_search, parameter_map, best_parameters_to_keep);
+#ifdef LOCAL_NORMALIZATION
+    std::vector<float> orientations(healpix_binning.records_per_line);
+    number_of_search_positions                     = healpix_binning.number_of_lines;
+    global_euler_search.number_of_search_positions = number_of_search_positions;
+    Allocate2DFloatArray(global_euler_search.list_of_search_parameters, number_of_search_positions, 2);
+
+    for ( int counter = 0; counter < healpix_binning.number_of_lines; counter++ ) {
+        healpix_binning.ReadLine(orientations.data( ));
+        global_euler_search.list_of_search_parameters[counter][0] = orientations.at(0);
+        global_euler_search.list_of_search_parameters[counter][1] = orientations.at(1);
+    }
+    healpix_binning.Close( );
+#else
     if ( my_symmetry.StartsWith("C") ) // TODO 2x check me - w/o this O symm at least is broken
     {
         if ( global_euler_search.test_mirror == true ) // otherwise the theta max is set to 90.0 and test_mirror is set to true.  However, I don't want to have to test the mirrors.
@@ -542,6 +607,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     }
 
     global_euler_search.CalculateGridSearchPositions(false);
+#endif
 
     // for now, I am assuming the MTF has been applied already.
     // work out the filter to just whiten the image..
@@ -749,7 +815,6 @@ bool MatchTemplateApp::DoCalculation( ) {
 
                         Image sum   = GPU[tIDX].d_sum3.CopyDeviceToNewHost(true, false);
                         Image sumSq = GPU[tIDX].d_sumSq3.CopyDeviceToNewHost(true, false);
-
                         // TODO swap max_padding for explicit padding in x/y and limit calcs to that region.
                         pixel_counter = 0;
                         for ( current_y = 0; current_y < max_intensity_projection.logical_y_dimension; current_y++ ) {
@@ -832,7 +897,7 @@ bool MatchTemplateApp::DoCalculation( ) {
                     vmcMulByConj(padded_reference.real_memory_allocated / 2, reinterpret_cast<MKL_Complex8*>(input_image.complex_values), reinterpret_cast<MKL_Complex8*>(padded_reference.complex_values), reinterpret_cast<MKL_Complex8*>(padded_reference.complex_values), VML_EP | VML_FTZDAZ_ON | VML_ERRMODE_IGNORE);
 #else
                     for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated / 2; pixel_counter++ ) {
-                          padded_reference.complex_values[pixel_counter] = conj(padded_reference.complex_values[pixel_counter]) * input_image.complex_values[pixel_counter];
+                        padded_reference.complex_values[pixel_counter] = conj(padded_reference.complex_values[pixel_counter]) * input_image.complex_values[pixel_counter];
                     }
 #endif
 
@@ -872,7 +937,46 @@ bool MatchTemplateApp::DoCalculation( ) {
 
                         pixel_counter += padded_reference.padding_jump_value;
                     }
+#ifdef LOCAL_NORMALIZATION
+                    pixel_counter = 0;
+                    for ( current_y = 0; current_y < max_intensity_projection.logical_y_dimension; current_y++ ) {
+                        for ( current_x = 0; current_x < max_intensity_projection.logical_x_dimension; current_x++ ) {
+                            float value = padded_reference.real_values[pixel_counter]; //* (float)sqrt_input_pixels;
+                            // Welford's algorithm for trimming
+                            if ( n_image[pixel_counter] < BUFFER_SIZE ) {
+                                // Buffering phase
+                                n_image[pixel_counter]++;
+                                float delta = value - mean_image[pixel_counter];
+                                mean_image[pixel_counter] += delta / n_image[pixel_counter];
+                                float delta2 = value - mean_image[pixel_counter];
+                                M2_image[pixel_counter] += delta * delta2;
+                            }
+                            else {
+                                // Outlier trimming
+                                variance_image[pixel_counter] = M2_image[pixel_counter] / (n_image[pixel_counter] - 1);
+                                stddev_image[pixel_counter]   = std::sqrt(variance_image[pixel_counter]);
 
+                                if ( std::abs(value - mean_image[pixel_counter]) > OUTLIER_THRESHOLD * stddev_image[pixel_counter] ) {
+                                    // Skip outlier
+                                    //wxPrintf("\n\n\nSkipped outlier!\n");
+                                    //float a = std::abs(value - mean_image[pixel_counter]);
+                                    //float b = OUTLIER_THRESHOLD * stddev_image[pixel_counter];
+                                    //wxPrintf("Found %0.2f greater than 0.2f \n", a, b);
+                                    pixel_counter++;
+                                    continue;
+                                }
+
+                                // Update running statistics for non-outliers
+                                n_image[pixel_counter]++;
+                                float delta = value - mean_image[pixel_counter];
+                                mean_image[pixel_counter] += delta / n_image[pixel_counter];
+                                float delta2 = value - mean_image[pixel_counter];
+                                M2_image[pixel_counter] += delta * delta2;
+                            }
+                            pixel_counter++;
+                        }
+                    }
+#else
                     //                    correlation_pixel_sum.AddImage(&padded_reference);
                     for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
                         correlation_pixel_sum[pixel_counter] += padded_reference.real_values[pixel_counter];
@@ -882,7 +986,7 @@ bool MatchTemplateApp::DoCalculation( ) {
                     for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
                         correlation_pixel_sum_of_squares[pixel_counter] += padded_reference.real_values[pixel_counter];
                     }
-
+#endif
                     //max_intensity_projection.QuickAndDirtyWriteSlice("/tmp/mip.mrc", 1);
 
                     current_projection.is_in_real_space = false;
@@ -906,10 +1010,16 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     wxPrintf("\n\n\tTimings: Overall: %s\n", (wxDateTime::Now( ) - overall_start).Format( ));
 
+#ifdef LOCAL_NORMALIZATION
+    wxPrintf("\n\n\nLocal normalization: Done!\n");
+
+#else
+
     for ( pixel_counter = 0; pixel_counter < input_image.real_memory_allocated; pixel_counter++ ) {
         correlation_pixel_sum_image.real_values[pixel_counter]            = (float)correlation_pixel_sum[pixel_counter];
         correlation_pixel_sum_of_squares_image.real_values[pixel_counter] = (float)correlation_pixel_sum_of_squares[pixel_counter];
     }
+#endif
 
     if ( is_rotated_by_90 ) {
         // swap back all the images prior to re-sizing
@@ -951,7 +1061,17 @@ bool MatchTemplateApp::DoCalculation( ) {
         delete my_progress;
 
         // scale images..
+#ifdef LOCAL_NORMALIZATION
+        for ( pixel_counter = 0; pixel_counter < input_image.real_memory_allocated; pixel_counter++ ) {
+            correlation_pixel_sum[pixel_counter] = mean_image[pixel_counter] * (float)sqrt_input_pixels;
+            //if ( stddev_array[pixel_counter] > 0.0f ) {
+            correlation_pixel_sum_of_squares[pixel_counter] = stddev_image[pixel_counter] * (float)sqrt_input_pixels;
+            //}
+            //else
+            //correlation_pixel_sum_of_squares[pixel_counter] = 0.0f;
+        }
 
+#else
         for ( pixel_counter = 0; pixel_counter < input_image.real_memory_allocated; pixel_counter++ ) {
 
             //            correlation_pixel_sum.real_values[pixel_counter] /= float(total_correlation_positions);
@@ -970,6 +1090,8 @@ bool MatchTemplateApp::DoCalculation( ) {
                 correlation_pixel_sum_of_squares[pixel_counter] = 0.0f;
             correlation_pixel_sum[pixel_counter] *= (float)sqrt_input_pixels;
         }
+
+#endif
 
         max_intensity_projection.MultiplyByConstant((float)sqrt_input_pixels);
         //        correlation_pixel_sum.MultiplyByConstant(sqrtf(max_intensity_projection.logical_x_dimension * max_intensity_projection.logical_y_dimension));
@@ -1240,7 +1362,7 @@ bool MatchTemplateApp::DoCalculation( ) {
         delete[] GPU;
     }
 
-    //  gpuDev.ResetGpu();
+//  gpuDev.ResetGpu();
 #endif
 
     if ( is_running_locally == true ) {
