@@ -193,21 +193,20 @@ bool Merge3DApp::DoCalculation( ) {
     output_3d2.FinalizeSimple(my_reconstruction_2, original_x_dimension, original_pixel_size, pixel_size,
                               inner_mask_radius, outer_mask_radius, mask_falloff, output_reconstruction_2);
 
-
     output_3d.mask_volume_in_voxels = output_3d1.mask_volume_in_voxels;
 
     my_reconstruction_1 += my_reconstruction_2;
     my_reconstruction_2.FreeMemory( );
 
     output_3d.FinalizeSimple(my_reconstruction_1, original_x_dimension, original_pixel_size, pixel_size,
-                              inner_mask_radius, outer_mask_radius, mask_falloff, output_reconstruction_2);
+                             inner_mask_radius, outer_mask_radius, mask_falloff, output_reconstruction_2);
 
     output_3d.density_map->QuickAndDirtyWriteSlices("combined_unfil_recons.mrc", 1, output_3d1.density_map->logical_z_dimension);
 
     wxPrintf("Running Blush...\n");
 
     wxString execution_command1;
-    execution_command1 = wxString::Format("/data/blush_tests/run_blush.sh %s %s", "combined_unfil_recons.mrc", "blushed_vol.mrc"); //, measured_resolution, 120.0, original_pixel_size, "halfset1_blushed.mrc");
+    execution_command1 = wxString::Format("/scratch/blush_tests/run_blush.sh %s %s", "combined_unfil_recons.mrc", "blushed_vol.mrc"); //, measured_resolution, 120.0, original_pixel_size, "halfset1_blushed.mrc");
     system(execution_command1.ToUTF8( ).data( ));
 
     wxPrintf("BLUSH done ...\n");
@@ -220,7 +219,7 @@ bool Merge3DApp::DoCalculation( ) {
     output_3d.density_map->ForwardFFT(true);
 
     output_3d.FinalizeOptimal(my_reconstruction_1, output_3d1.density_map, output_3d2.density_map, original_pixel_size, pixel_size, inner_mask_radius, outer_mask_radius, mask_falloff,
-                              center_mass, output_reconstruction_filtered, output_statistics_file, resolution_statistics , weiner_nominator);
+                              center_mass, output_reconstruction_filtered, output_statistics_file, resolution_statistics, weiner_nominator);
     wxPrintf("finalize optimal with blush complete...\n");
     //float orientation_distribution_efficiency = output_3d.ComputeOrientationDistributionEfficiency(my_reconstruction_1);
     //SendInfo(wxString::Format("Orientation distribution efficiency: %0.2f\n",orientation_distribution_efficiency));
