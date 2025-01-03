@@ -1,5 +1,7 @@
 #include <cistem_config.h>
 
+#define PIXEL_OUTPUT
+
 #ifdef ENABLEGPU
 #include "../../gpu/gpu_core_headers.h"
 #include "../../gpu/DeviceManager.h"
@@ -80,6 +82,9 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     wxString correlation_std_output_file;
     wxString correlation_avg_output_file;
     wxString scaled_mip_output_file;
+    wxString healpix_file;
+    wxString coords_to_track_file;
+    wxString write_out_cc_file;
 
     float pixel_size              = 1.0f;
     float voltage_kV              = 300.0f;
@@ -147,10 +152,16 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 #else
     // Ensure we always have the same number of interactive inputs to make scripting more consistent.
     // (N\ot that it is likely to run match_template on the CPU)
-    use_gpu_input = my_input->GetYesNoFromUser("Use GPU", "Not compiled for gpu, input ignored.", "No");
-    max_threads   = my_input->GetIntFromUser("Max. threads to use for calculation", "Not compiled for gpu, input ignored.", "1", 1);
-    use_gpu_input = false;
-    max_threads   = 1;
+    use_gpu_input                   = my_input->GetYesNoFromUser("Use GPU", "Not compiled for gpu, input ignored.", "No");
+    max_threads                     = my_input->GetIntFromUser("Max. threads to use for calculation", "Not compiled for gpu, input ignored.", "1", 1);
+    use_gpu_input                   = false;
+    max_threads                     = 1;
+#endif
+
+#ifdef PIXEL_OUTPUT
+    healpix_file         = my_input->GetFilenameFromUser("Healpix region segment file", "File containing the Phi and Theta values for search", "orientations.txt", false);
+    coords_to_track_file = my_input->GetFilenameFromUser("Text file with x,y coordinates to track across full search", "File containing the x,y coordinates to track", "none", false);
+    write_out_cc_file    = my_input->GetFilenameFromUser("Output filename for the CC's of tracked coordinates : ", "Output correlation values at the tracked coordinates", "none", false);
 #endif
 
     int   first_search_position           = -1;
@@ -164,7 +175,12 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 
     delete my_input;
 
-    my_current_job.ManualSetArguments("ttffffffffffifffffbfftttttttttftiiiitttfbi", input_search_images.ToUTF8( ).data( ),
+#ifdef PIXEL_OUTPUT
+    const char* jop_code_arg_string = "ttffffffffffifffffbfftttttttttftiiiitttfbittt";
+#else
+    const char* jop_code_arg_string = "ttffffffffffifffffbfftttttttttftiiiitttfbi";
+#endif
+    my_current_job.ManualSetArguments(jop_code_arg_string, input_search_images.ToUTF8( ).data( ),
                                       input_reconstruction.ToUTF8( ).data( ),
                                       pixel_size,
                                       voltage_kV,
@@ -205,7 +221,15 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
                                       result_filename.ToUTF8( ).data( ),
                                       min_peak_radius,
                                       use_gpu_input,
-                                      max_threads);
+                                      max_threads
+#ifdef PIXEL_OUTPUT
+                                      ,
+                                      healpix_file.ToUTF8( ).data( ),
+                                      coords_to_track_file.ToUTF8( ).data( ),
+                                      write_out_cc_file.ToUTF8( ).data( ));
+#else
+    );
+#endif
 }
 
 // override the do calculation method which will be what is actually run..
@@ -263,7 +287,22 @@ bool MatchTemplateApp::DoCalculation( ) {
     float    min_peak_radius                 = my_current_job.arguments[39].ReturnFloatArgument( );
     bool     use_gpu                         = my_current_job.arguments[40].ReturnBoolArgument( );
     int      max_threads                     = my_current_job.arguments[41].ReturnIntegerArgument( );
-
+#ifdef PIXEL_OUTPUT
+    double temp_cc_array[4];
+    // The median filter test is only setup to work single threaded.
+    MyAssertFalse(max_threads > 1, "The median filter test is only setup to work single threaded.");
+    wxString healpix_file = my_current_job.arguments[42].ReturnStringArgument( );
+    // List of x,y logical coordinates to save all ccf, abs_dev, med_abs_dev.
+    // There is no check on memory limits. You will need N_pixels * 2 bytes * 6 extra gpu memory for this.
+    bool     track_pixels_across_search = false;
+    wxString coords_to_track_file       = my_current_job.arguments[43].ReturnStringArgument( );
+    wxString write_out_cc_file          = my_current_job.arguments[44].ReturnStringArgument( );
+    // Default value for the parser, otherwise, must be a filename that exists
+    if ( coords_to_track_file != "none" ) {
+        track_pixels_across_search = true;
+        //wxString write_out_cc_file = my_current_job.arguments[44].ReturnStringArgument( ); // Why didnt this work? Not declared in scope compile error
+    }
+#endif
     if ( is_running_locally == false )
         max_threads = number_of_threads_requested_on_command_line; // OVERRIDE FOR THE GUI, AS IT HAS TO BE SET ON THE COMMAND LINE...
 
@@ -330,6 +369,15 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     EulerSearch     global_euler_search;
     AnglesAndShifts angles;
+
+#ifdef PIXEL_OUTPUT
+    //RD: for counting the lines in the file and assigning the Float array global_euler_search.list_of_search_parameters
+    int number_of_search_positions = 0;
+    //RD : To open the text file containing the orientations from Healpix
+    NumericTextFile healpix_binning(healpix_file, OPEN_TO_READ, 0);
+    NumericTextFile pixel_file;
+    NumericTextFile cc_file(write_out_cc_file, OPEN_TO_WRITE, 4);
+#endif
 
     ImageFile input_search_image_file;
     ImageFile input_reconstruction_file;
@@ -432,6 +480,7 @@ bool MatchTemplateApp::DoCalculation( ) {
             input_reconstruction.Resize(input_reconstruction.logical_x_dimension * padding, input_reconstruction.logical_y_dimension * padding, input_reconstruction.logical_z_dimension * padding, input_reconstruction.ReturnAverageOfRealValuesOnEdges( ));
         }
 
+#ifndef PIXEL_OUTPUT
 #ifdef ROTATEFORSPEED
         if ( ! is_power_of_two(factorizable_x) && is_power_of_two(factorizable_y) ) {
             // The speedup in the FFT for better factorization is also dependent on the dimension. The full transform (in cufft anyway) is faster if the best dimension is on X.
@@ -452,6 +501,7 @@ bool MatchTemplateApp::DoCalculation( ) {
             }
             is_rotated_by_90 = false;
         }
+#endif
 #endif
     }
 
@@ -533,6 +583,54 @@ bool MatchTemplateApp::DoCalculation( ) {
     // search grid
 
     global_euler_search.InitGrid(my_symmetry, angular_step, 0.0f, 0.0f, psi_max, psi_step, psi_start, pixel_size / high_resolution_limit_search, parameter_map, best_parameters_to_keep);
+#ifdef PIXEL_OUTPUT
+
+    // Changing the following 2024-4-5 Bah
+    // float orientations[healpix_binning.number_of_lines];
+
+    // This is no good for two reasons:
+    // 1) you are allocating an array on the stack which does work for some compilers, but not all. It is generally considered that the
+    // size of a stack allocated array should be known at compile time.
+    // 2) even if you knew the size, you are allocating an array that is the size of the file, but what you want is an array
+    // that has the same number of records per line. These sort of details make or break c++ code.
+    std::vector<float> orientations(healpix_binning.records_per_line);
+
+    number_of_search_positions                     = healpix_binning.number_of_lines;
+    global_euler_search.number_of_search_positions = number_of_search_positions;
+    Allocate2DFloatArray(global_euler_search.list_of_search_parameters, number_of_search_positions, 2);
+
+    for ( int counter = 0; counter < healpix_binning.number_of_lines; counter++ ) {
+        healpix_binning.ReadLine(orientations.data( ));
+        global_euler_search.list_of_search_parameters[counter][0] = orientations.at(0);
+        global_euler_search.list_of_search_parameters[counter][1] = orientations.at(1);
+    }
+    healpix_binning.Close( );
+
+    // We'll track the ccf, absolute deviation, and median absolute deviation for one pixel requested in the numeric text file.
+    //std::vector<float> ccf_abs_dev_med_abs_dev(number_of_search_positions * 3);
+
+    // Use the array to read in each line of the coordinate file.
+    int   x_coord_to_track;
+    int   y_coord_to_track;
+    float temp_coords[2];
+
+    if ( track_pixels_across_search ) {
+        pixel_file.Open(coords_to_track_file, OPEN_TO_READ, 2);
+        MyDebugAssertTrue(pixel_file.number_of_lines == 1, "The file should only have one line in it.");
+        // There should only be one line in the file, representing one x,y coordinate.
+        pixel_file.ReadLine(temp_coords);
+    }
+
+    x_coord_to_track = myroundint(temp_coords[0]);
+    y_coord_to_track = myroundint(temp_coords[1]);
+
+    wxPrintf("Tracking pixel at x = %i, y = %i\n", x_coord_to_track, y_coord_to_track);
+    // Pass a reference of this into the GPU inner loop. If size is > 0, enable tracking there.
+    // Gather reference back.  Will only work for one thread as written.
+    // Calculate the pixel_counter for (10, 10)
+    long pixel_index = y_coord_to_track * (input_reconstruction.logical_x_dimension + max_intensity_projection.padding_jump_value) + x_coord_to_track;
+    wxPrintf("Tracking pixel at pixel counter = %li\n", pixel_index);
+#else
     if ( my_symmetry.StartsWith("C") ) // TODO 2x check me - w/o this O symm at least is broken
     {
         if ( global_euler_search.test_mirror == true ) // otherwise the theta max is set to 90.0 and test_mirror is set to true.  However, I don't want to have to test the mirrors.
@@ -542,6 +640,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     }
 
     global_euler_search.CalculateGridSearchPositions(false);
+#endif
 
     // for now, I am assuming the MTF has been applied already.
     // work out the filter to just whiten the image..
@@ -750,6 +849,18 @@ bool MatchTemplateApp::DoCalculation( ) {
                         Image sum   = GPU[tIDX].d_sum3.CopyDeviceToNewHost(true, false);
                         Image sumSq = GPU[tIDX].d_sumSq3.CopyDeviceToNewHost(true, false);
 
+#ifdef PIXEL_OUTPUT
+                        //double target_value = padded_reference.real_values[100];
+                        //for ( int i = 0; i < 3; i++ ) {
+                        temp_cc_array[0] = (double)mip_buffer.real_values[pixel_index] * sqrt_input_pixels;
+                        temp_cc_array[1] = (double)psi_buffer.real_values[pixel_index];
+                        temp_cc_array[2] = (double)theta_buffer.real_values[pixel_index];
+                        temp_cc_array[3] = (double)phi_buffer.real_values[pixel_index];
+                        cc_file.WriteLine(temp_cc_array);
+                        //}
+                        //cc_file.WriteLine(target_value);
+#endif
+
                         // TODO swap max_padding for explicit padding in x/y and limit calcs to that region.
                         pixel_counter = 0;
                         for ( current_y = 0; current_y < max_intensity_projection.logical_y_dimension; current_y++ ) {
@@ -773,7 +884,6 @@ bool MatchTemplateApp::DoCalculation( ) {
 
                             pixel_counter += max_intensity_projection.padding_jump_value;
                         }
-
                         // GPU[tIDX].histogram.CopyToHostAndAdd(histogram_data);
                         GPU[tIDX].my_dist.at(0).CopyToHostAndAdd(histogram_data);
 
@@ -832,7 +942,7 @@ bool MatchTemplateApp::DoCalculation( ) {
                     vmcMulByConj(padded_reference.real_memory_allocated / 2, reinterpret_cast<MKL_Complex8*>(input_image.complex_values), reinterpret_cast<MKL_Complex8*>(padded_reference.complex_values), reinterpret_cast<MKL_Complex8*>(padded_reference.complex_values), VML_EP | VML_FTZDAZ_ON | VML_ERRMODE_IGNORE);
 #else
                     for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated / 2; pixel_counter++ ) {
-                          padded_reference.complex_values[pixel_counter] = conj(padded_reference.complex_values[pixel_counter]) * input_image.complex_values[pixel_counter];
+                        padded_reference.complex_values[pixel_counter] = conj(padded_reference.complex_values[pixel_counter]) * input_image.complex_values[pixel_counter];
                     }
 #endif
 
@@ -872,6 +982,17 @@ bool MatchTemplateApp::DoCalculation( ) {
 
                         pixel_counter += padded_reference.padding_jump_value;
                     }
+#ifdef PIXEL_OUTPUT
+                    //double target_value = padded_reference.real_values[100];
+                    //for ( int i = 0; i < 3; i++ ) {
+                    temp_cc_array[0] = (double)padded_reference.real_values[pixel_index] * sqrt_input_pixels;
+                    temp_cc_array[1] = (double)best_psi.real_values[pixel_index];
+                    temp_cc_array[2] = (double)best_theta.real_values[pixel_index];
+                    temp_cc_array[3] = (double)best_phi.real_values[pixel_index];
+                    cc_file.WriteLine(temp_cc_array);
+                    //}
+                    //cc_file.WriteLine(target_value);
+#endif
 
                     //                    correlation_pixel_sum.AddImage(&padded_reference);
                     for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated; pixel_counter++ ) {
@@ -903,6 +1024,7 @@ bool MatchTemplateApp::DoCalculation( ) {
             }
         }
     }
+    cc_file.Close( );
 
     wxPrintf("\n\n\tTimings: Overall: %s\n", (wxDateTime::Now( ) - overall_start).Format( ));
 
