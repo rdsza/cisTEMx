@@ -178,7 +178,7 @@ bool Project3DApp::DoCalculation( ) {
             }
         }
 
-        global_euler_search.CalculateGridSearchPositions(false);
+        global_euler_search.CalculateNewGridSearchPositions(false);
     }
 
     MRCFile         input_file(input_reconstruction.ToStdString( ), false);
