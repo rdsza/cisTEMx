@@ -120,44 +120,6 @@ void EulerSearch::Init(float wanted_resolution_limit, ParameterMap& wanted_param
     //Allocate2DFloatArray(list_of_best_parameters, best_parameters_to_keep + 1, 6);
 }
 
-void EulerSearch::InitGridThetaBin(wxString wanted_symmetry_symbol, float wanted_angular_step_size,
-                                   float wanted_phi_start, float wanted_theta_start, float wanted_theta_max,
-                                   float wanted_psi_max, float wanted_psi_step, float wanted_psi_start,
-                                   float wanted_resolution_limit, ParameterMap& wanted_parameter_map,
-                                   int wanted_parameters_to_keep) {
-    if ( number_of_search_positions == 0 )
-        Init(wanted_resolution_limit, wanted_parameter_map, wanted_parameters_to_keep);
-
-    angular_step_size = wanted_angular_step_size;
-    phi_start         = wanted_phi_start;
-    theta_start       = wanted_theta_start;
-    theta_max         = wanted_theta_max; // Set the custom theta_max
-    psi_max           = wanted_psi_max;
-    psi_step          = wanted_psi_step;
-    psi_start         = wanted_psi_start;
-    symmetry_symbol   = wanted_symmetry_symbol;
-
-    wxPrintf("InitGrid: theta_start = %f, theta_max = %f\n", theta_start, theta_max);
-
-    //SetSymmetryLimits( ); // Check if this function modifies theta_max
-    SetSymmetryLimitsThetaBin( );
-
-    wxPrintf("After SetSymmetryLimits: theta_start = %f, theta_max = %f\n", theta_start, theta_max);
-
-    CalculateGridSearchPositions( ); // Verify that this function receives correct values
-
-    wxPrintf("After CalculateGridSearchPositions: theta_start = %f, theta_max = %f\n", theta_start, theta_max);
-
-    if ( list_of_best_parameters != NULL )
-        Deallocate2DFloatArray(list_of_best_parameters, best_parameters_to_keep + 1);
-
-    if ( number_of_search_positions < best_parameters_to_keep ) {
-        best_parameters_to_keep = number_of_search_positions;
-    }
-
-    Allocate2DFloatArray(list_of_best_parameters, best_parameters_to_keep + 1, 6);
-}
-
 void EulerSearch::InitGrid(wxString wanted_symmetry_symbol, float wanted_angular_step_size, float wanted_phi_start, float wanted_theta_start, float wanted_psi_max, float wanted_psi_step, float wanted_psi_start, float wanted_resolution_limit, ParameterMap& wanted_parameter_map, int wanted_parameters_to_keep) {
     if ( number_of_search_positions == 0 )
         Init(wanted_resolution_limit, wanted_parameter_map, wanted_parameters_to_keep);
@@ -206,89 +168,6 @@ void EulerSearch::InitRandom(wxString wanted_symmetry_symbol, float wanted_psi_s
     }
 
     Allocate2DFloatArray(list_of_best_parameters, best_parameters_to_keep + 1, 6);
-}
-
-void EulerSearch::CalculateNewGridSearchPositions(bool random_start_angle) {
-    float phi, theta;
-    float theta_step, phi_step;
-    float theta_max_local   = theta_max;
-    float theta_start_local = theta_start;
-    float phi_start_local   = phi_start;
-
-    // Ensure proper allocation
-    if ( list_of_search_parameters != NULL )
-        Deallocate2DFloatArray(list_of_search_parameters, number_of_search_positions);
-
-    number_of_search_positions = 0;
-
-    // Compute the number of theta steps
-    int num_theta = static_cast<int>(theta_max_local / angular_step_size) + 1;
-
-    // Iterate over theta values
-    for ( int i = 0; i < num_theta; ++i ) {
-        theta = i * angular_step_size;
-
-        if ( theta > theta_max_local )
-            break;
-
-        // Compute phi step to maintain uniform distribution
-        if ( theta == 0.0f || theta == 180.0f ) {
-            phi_step = phi_max; // Only one phi value at poles
-        }
-        else {
-            phi_step = fabsf(angular_step_size / sinf(deg_2_rad(theta)));
-            phi_step = std::min(phi_step, phi_max);
-            phi_step = phi_max / int(phi_max / phi_step + 0.5f);
-        }
-
-        // Compute number of phi steps for this theta
-        int num_phi = static_cast<int>(phi_max / phi_step);
-
-        for ( int j = 0; j < num_phi; ++j ) {
-            phi = j * phi_step;
-
-            if ( phi >= phi_max )
-                break;
-
-            number_of_search_positions++;
-        }
-    }
-
-    // Allocate memory for search parameters
-    Allocate2DFloatArray(list_of_search_parameters, number_of_search_positions, 2);
-
-    // Populate the search grid
-    int index = 0;
-    for ( int i = 0; i < num_theta; ++i ) {
-        theta = i * angular_step_size;
-
-        if ( theta > theta_max_local )
-            break;
-
-        if ( theta == 0.0f || theta == 180.0f ) {
-            phi_step = phi_max;
-        }
-        else {
-            phi_step = fabsf(angular_step_size / sinf(deg_2_rad(theta)));
-            phi_step = std::min(phi_step, phi_max);
-            phi_step = phi_max / int(phi_max / phi_step + 0.5f);
-        }
-
-        int num_phi = static_cast<int>(phi_max / phi_step);
-
-        for ( int j = 0; j < num_phi; ++j ) {
-            phi = j * phi_step;
-
-            if ( phi >= phi_max )
-                break;
-
-            list_of_search_parameters[index][0] = phi + phi_start_local;
-            list_of_search_parameters[index][1] = theta;
-            index++;
-        }
-    }
-
-    wxPrintf("CalculateGridSearchPositions: Generated %d search positions\n", number_of_search_positions);
 }
 
 void EulerSearch::CalculateGridSearchPositions(bool random_start_angle) {
@@ -385,7 +264,6 @@ void EulerSearch::CalculateGridSearchPositions(bool random_start_angle) {
     if ( ! parameter_map.psi ) {
         test_mirror = false;
     }
-    wxPrintf("CalculateGridSearchPositions: theta_start = %f, theta_max = %f\n", theta_start, theta_max);
     //	wxPrintf("\nNumber of global search views = %i\n", number_of_search_positions);
 }
 
@@ -447,94 +325,6 @@ void EulerSearch::CalculateRandomSearchPositions( ) {
     if ( ! parameter_map.psi ) {
         test_mirror = false;
     }
-}
-
-void EulerSearch::SetSymmetryLimitsThetaBin( ) {
-    // Frealign limits, original code written by Richard Henderson
-    //    DATA  ASYMTEST/' CDTOI0123456789'/
-    //    DATA  THETASTORE/90.0,  90.0,  54.7,  54.7,  31.7/
-    //    DATA  PHISTORE/360.0,  360.0, 180.0,  90.0, 180.0/
-    //    DATA  JSTORE/2,1,1,1,1/
-
-    wxChar symmetry_type;
-    long   symmetry_number;
-
-    if ( symmetry_symbol.Length( ) < 1 ) {
-        MyPrintWithDetails("Error: Must specify symmetry symbol\n");
-        DEBUG_ABORT;
-    }
-
-    symmetry_type = symmetry_symbol.Capitalize( )[0];
-    if ( symmetry_symbol.Length( ) == 1 ) {
-        symmetry_number = 0;
-    }
-    else {
-        if ( ! symmetry_symbol.Mid(1).ToLong(&symmetry_number) ) {
-            MyPrintWithDetails("Error: Invalid n after symmetry symbol\n");
-            DEBUG_ABORT;
-        }
-    }
-
-    // Preserve manually set theta_max if it is > 0
-    bool theta_was_set = (theta_max > 0.0f);
-
-    if ( symmetry_type == 'C' ) {
-        if ( symmetry_number == 0 ) {
-            MyPrintWithDetails("Error: Invalid n after symmetry symbol\n");
-            DEBUG_ABORT;
-        }
-
-        phi_max = 360.0 / symmetry_number;
-        if ( ! theta_was_set )
-            theta_max = 90.0; // Only set if not manually specified
-        test_mirror = true;
-
-        return;
-    }
-
-    if ( symmetry_type == 'D' ) {
-        if ( symmetry_number == 0 ) {
-            MyPrintWithDetails("Error: Invalid n after symmetry symbol\n");
-            DEBUG_ABORT;
-        }
-
-        phi_max = 360.0 / symmetry_number;
-        if ( ! theta_was_set )
-            theta_max = 90.0;
-        test_mirror = false;
-
-        return;
-    }
-
-    if ( symmetry_type == 'T' ) {
-        phi_max = 180.0;
-        if ( ! theta_was_set )
-            theta_max = 54.7;
-        test_mirror = false;
-
-        return;
-    }
-
-    if ( symmetry_type == 'O' ) {
-        phi_max = 90.0;
-        if ( ! theta_was_set )
-            theta_max = 54.7;
-        test_mirror = false;
-
-        return;
-    }
-
-    if ( symmetry_type == 'I' ) {
-        phi_max = 180.0;
-        if ( ! theta_was_set )
-            theta_max = 31.7;
-        test_mirror = false;
-
-        return;
-    }
-
-    MyPrintWithDetails("Error: Invalid symmetry symbol\n");
-    DEBUG_ABORT;
 }
 
 void EulerSearch::SetSymmetryLimits( ) {

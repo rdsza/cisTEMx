@@ -6,6 +6,8 @@
 #include "Histogram.h"
 #include "template_matching_empirical_distribution.h"
 
+#define SINOGRAM_PSI_ALIGNMENT
+
 class TemplateMatchingCore {
 
   private:
@@ -144,7 +146,12 @@ class TemplateMatchingCore {
               bool             is_running_locally,
               int              number_of_global_search_images_to_save = 1);
 
-    void RunInnerLoop(Image& projection_filter, float pixel_i, float defocus_i, int threadIDX, long& current_correlation_position);
+    void RunInnerLoop(Image& projection_filter, float pixel_i, float defocus_i, int threadIDX, long& current_correlation_position
+#ifdef SINOGRAM_PSI_ALIGNMENT
+                      ,
+                      std::vector<float>& psi_adjust
+#endif
+    );
 };
 
 #endif

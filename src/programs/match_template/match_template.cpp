@@ -1,5 +1,7 @@
 #include <cistem_config.h>
 
+#define SINOGRAM_PSI_ALIGNMENT
+
 #ifdef ENABLEGPU
 #include "../../gpu/gpu_core_headers.h"
 #include "../../gpu/DeviceManager.h"
@@ -45,7 +47,7 @@ class
   public:
     bool DoCalculation( );
     void DoInteractiveUserInput( );
-    void MasterHandleProgramDefinedResult(float* result_array, long array_size, int result_number, int number_of_expected_results);
+    void MasterHandleProgramDefinedRxesult(float* result_array, long array_size, int result_number, int number_of_expected_results);
     void ProgramSpecificInit( );
 
     // for master collation
@@ -105,8 +107,11 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     float    in_plane_angular_step     = 0;
     bool     use_gpu_input             = false;
     int      max_threads               = 1; // Only used for the GPU code
-    float    theta_max;
-    float    theta_start;
+#ifdef SINOGRAM_PSI_ALIGNMENT
+    float    psi_max;
+    float    psi_start;
+    wxString corrected_psi_file;
+#endif
 
     UserInput* my_input = new UserInput("MatchTemplate", 1.00);
 
@@ -149,13 +154,17 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 #else
     // Ensure we always have the same number of interactive inputs to make scripting more consistent.
     // (N\ot that it is likely to run match_template on the CPU)
-    use_gpu_input = my_input->GetYesNoFromUser("Use GPU", "Not compiled for gpu, input ignored.", "No");
-    max_threads   = my_input->GetIntFromUser("Max. threads to use for calculation", "Not compiled for gpu, input ignored.", "1", 1);
-    use_gpu_input = false;
-    max_threads   = 1;
+    use_gpu_input                   = my_input->GetYesNoFromUser("Use GPU", "Not compiled for gpu, input ignored.", "No");
+    max_threads                     = my_input->GetIntFromUser("Max. threads to use for calculation", "Not compiled for gpu, input ignored.", "1", 1);
+    use_gpu_input                   = false;
+    max_threads                     = 1;
 #endif
-    theta_start = my_input->GetFloatFromUser("Provide theta start for normalization", "when dealing with painful looking mips, use azimuthal binning", "0.0", 0.0, 360.0);
-    theta_max   = my_input->GetFloatFromUser("Provide theta max for normalization", "when dealing with painful looking mips, use azimuthal binning", "180.0", 0.0, 360.0);
+
+#ifdef SINOGRAM_PSI_ALIGNMENT
+    psi_start          = my_input->GetFloatFromUser("Provide psi start for normalization", "when dealing with painful looking mips, use in-plane binning", "0.0", 0.0, 360.0);
+    psi_max            = my_input->GetFloatFromUser("Provide psi max for normalization", "when dealing with painful looking mips, use in-plane binning", "360.0", 0.0, 360.0);
+    corrected_psi_file = my_input->GetFilenameFromUser("Autocorrelation theta max indices  file", "File containing the Theta max values for psi adjustments", "file.txt", false);
+#endif
 
     int   first_search_position           = -1;
     int   last_search_position            = -1;
@@ -168,7 +177,12 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 
     delete my_input;
 
-    my_current_job.ManualSetArguments("ttffffffffffifffffbfftttttttttftiiiitttfbiff", input_search_images.ToUTF8( ).data( ),
+#ifdef SINOGRAM_PSI_ALIGNMENT
+    const char* job_code_arg_string = "ttffffffffffifffffbfftttttttttftiiiitttfbifft";
+#else
+    const char* job_code_arg_string = "ttffffffffffifffffbfftttttttttftiiiitttfbi";
+#endif
+    my_current_job.ManualSetArguments(job_code_arg_string, input_search_images.ToUTF8( ).data( ),
                                       input_reconstruction.ToUTF8( ).data( ),
                                       pixel_size,
                                       voltage_kV,
@@ -209,9 +223,15 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
                                       result_filename.ToUTF8( ).data( ),
                                       min_peak_radius,
                                       use_gpu_input,
-                                      max_threads,
-                                      theta_start,
-                                      theta_max);
+                                      max_threads
+#ifdef SINOGRAM_PSI_ALIGNMENT
+                                      ,
+                                      psi_start,
+                                      psi_max,
+                                      corrected_psi_file.ToUTF8( ).data( ));
+#else
+    );
+#endif
 }
 
 // override the do calculation method which will be what is actually run..
@@ -269,8 +289,11 @@ bool MatchTemplateApp::DoCalculation( ) {
     float    min_peak_radius                 = my_current_job.arguments[39].ReturnFloatArgument( );
     bool     use_gpu                         = my_current_job.arguments[40].ReturnBoolArgument( );
     int      max_threads                     = my_current_job.arguments[41].ReturnIntegerArgument( );
-    float    theta_start                     = my_current_job.arguments[42].ReturnFloatArgument( );
-    float    theta_max                       = my_current_job.arguments[43].ReturnFloatArgument( );
+#ifdef SINOGRAM_PSI_ALIGNMENT
+    float    psi_start          = my_current_job.arguments[42].ReturnFloatArgument( );
+    float    psi_max            = my_current_job.arguments[43].ReturnFloatArgument( );
+    wxString corrected_psi_file = my_current_job.arguments[44].ReturnStringArgument( );
+#endif
 
     if ( is_running_locally == false )
         max_threads = number_of_threads_requested_on_command_line; // OVERRIDE FOR THE GUI, AS IT HAS TO BE SET ON THE COMMAND LINE...
@@ -336,6 +359,12 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     EulerSearch     global_euler_search;
     AnglesAndShifts angles;
+
+#ifdef SINOGRAM_PSI_ALIGNMENT
+    NumericTextFile corrected_psis(corrected_psi_file, OPEN_TO_READ, 0);
+    //long*           psi_adjust;
+    //long number_of_psis;
+#endif
 
     ImageFile input_search_image_file;
     ImageFile input_reconstruction_file;
@@ -438,6 +467,7 @@ bool MatchTemplateApp::DoCalculation( ) {
             input_reconstruction.Resize(input_reconstruction.logical_x_dimension * padding, input_reconstruction.logical_y_dimension * padding, input_reconstruction.logical_z_dimension * padding, input_reconstruction.ReturnAverageOfRealValuesOnEdges( ));
         }
 
+#ifndef SINOGRAM_PSI_ALIGNMENT
 #ifdef ROTATEFORSPEED
         if ( ! is_power_of_two(factorizable_x) && is_power_of_two(factorizable_y) ) {
             // The speedup in the FFT for better factorization is also dependent on the dimension. The full transform (in cufft anyway) is faster if the best dimension is on X.
@@ -458,6 +488,7 @@ bool MatchTemplateApp::DoCalculation( ) {
             }
             is_rotated_by_90 = false;
         }
+#endif
 #endif
     }
 
@@ -528,31 +559,26 @@ bool MatchTemplateApp::DoCalculation( ) {
         psi_step = in_plane_angular_step;
     }
 
-    //psi_start = psi_step / 2.0 * global_random_number_generator.GetUniformRandom();
-    float psi_start = 0.0f;
-    float psi_max   = 360.0f;
+//psi_start = psi_step / 2.0 * global_random_number_generator.GetUniformRandom();
+#ifndef SINOGRAM_PSI_ALIGNMENT
+    psi_start = 0.0f;
+    psi_max   = 360.0f;
+#endif
 
     //psi_step = 5;
 
     //wxPrintf("psi_start = %f, psi_max = %f, psi_step = %f\n", psi_start, psi_max, psi_step);
 
     // search grid
-    //global_euler_search.InitGrid(my_symmetry, angular_step, 0.0f, theta_start, psi_max, psi_step, psi_start, pixel_size / high_resolution_limit_search, parameter_map, best_parameters_to_keep);
-    float custom_theta_start = theta_start; // Example custom value
-    float custom_theta_max   = theta_max; // Example custom value
 
-    global_euler_search.InitGridThetaBin(my_symmetry, angular_step, 0.0f, custom_theta_start, custom_theta_max,
-                                         psi_max, psi_step, psi_start, pixel_size / high_resolution_limit_search,
-                                         parameter_map, best_parameters_to_keep);
-
-    //if ( my_symmetry.StartsWith("C") ) // TODO 2x check me - w/o this O symm at least is broken
-    //{
-    //    if ( global_euler_search.test_mirror == true ) // otherwise the theta max is set to 90.0 and test_mirror is set to true.  However, I don't want to have to test the mirrors.
-    //    {
-    //        global_euler_search.theta_max = 180.0f;
-    //    }
-    //}
-    wxPrintf("theta_start = %f, theta_max = %f, theta_step = %f\n", global_euler_search.theta_start, global_euler_search.theta_max, global_euler_search.angular_step_size);
+    global_euler_search.InitGrid(my_symmetry, angular_step, 0.0f, 0.0f, psi_max, psi_step, psi_start, pixel_size / high_resolution_limit_search, parameter_map, best_parameters_to_keep);
+    if ( my_symmetry.StartsWith("C") ) // TODO 2x check me - w/o this O symm at least is broken
+    {
+        if ( global_euler_search.test_mirror == true ) // otherwise the theta max is set to 90.0 and test_mirror is set to true.  However, I don't want to have to test the mirrors.
+        {
+            global_euler_search.theta_max = 180.0f;
+        }
+    }
 
     global_euler_search.CalculateGridSearchPositions(false);
 
@@ -627,6 +653,19 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     ProgressBar* my_progress;
 
+#ifdef SINOGRAM_PSI_ALIGNMENT
+    std::vector<float> adjust_psi(corrected_psis.records_per_line);
+    wxPrintf("records per line %d\n\n", corrected_psis.records_per_line);
+    long number_of_psis = corrected_psis.number_of_lines;
+    wxPrintf("number of lines %li\n\n", number_of_psis);
+    std::vector<float> psi_adjust(corrected_psis.number_of_lines);
+    for ( long counter = 0; counter < corrected_psis.number_of_lines; counter++ ) {
+        corrected_psis.ReadLine(adjust_psi.data( ));
+        psi_adjust[counter] = adjust_psi.at(0);
+    }
+    corrected_psis.Close( );
+    wxPrintf("Got the corrected psi values %li and number of correlation positions: %i\n", number_of_psis, last_search_position - first_search_position);
+#endif
     //Loop over ever search position
 
     wxPrintf("\n\tFor image id %i\n", image_number_for_gui);
@@ -750,7 +789,12 @@ bool MatchTemplateApp::DoCalculation( ) {
                     int tIDX = ReturnThreadNumberOfCurrentThread( );
                     gpuDev.SetGpu(tIDX);
 
-                    GPU[tIDX].RunInnerLoop(projection_filter, size_i, defocus_i, tIDX, current_correlation_position);
+                    GPU[tIDX].RunInnerLoop(projection_filter, size_i, defocus_i, tIDX, current_correlation_position
+#ifdef SINOGRAM_PSI_ALIGNMENT
+                                           ,
+                                           psi_adjust
+#endif
+                    );
 
 #pragma omp critical
                     {
@@ -803,8 +847,16 @@ bool MatchTemplateApp::DoCalculation( ) {
 
             for ( current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
                 //loop over each rotation angle
+                // Read the adjusted value of theta here
+                // check if number of lines in the file are the same as total_correlation_positions
+                // read them one by one everytime.
 
                 //current_rotation = 0;
+                //float stepper = psi_adjust[current_search_position];
+                //wxPrintf("Stepper value : %f\n", stepper);
+                //wxPrintf("New Psi_start value : %f\n", psi_start + stepper);
+                //wxPrintf("New Psi_max value : %f\n", psi_max + stepper);
+
                 for ( current_psi = psi_start; current_psi <= psi_max; current_psi += psi_step ) {
 
                     angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], current_psi, 0.0, 0.0);
@@ -845,7 +897,7 @@ bool MatchTemplateApp::DoCalculation( ) {
                     vmcMulByConj(padded_reference.real_memory_allocated / 2, reinterpret_cast<MKL_Complex8*>(input_image.complex_values), reinterpret_cast<MKL_Complex8*>(padded_reference.complex_values), reinterpret_cast<MKL_Complex8*>(padded_reference.complex_values), VML_EP | VML_FTZDAZ_ON | VML_ERRMODE_IGNORE);
 #else
                     for ( pixel_counter = 0; pixel_counter < padded_reference.real_memory_allocated / 2; pixel_counter++ ) {
-                          padded_reference.complex_values[pixel_counter] = conj(padded_reference.complex_values[pixel_counter]) * input_image.complex_values[pixel_counter];
+                        padded_reference.complex_values[pixel_counter] = conj(padded_reference.complex_values[pixel_counter]) * input_image.complex_values[pixel_counter];
                     }
 #endif
 

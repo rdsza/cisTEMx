@@ -120,7 +120,12 @@ void TemplateMatchingCore::Init(MyApp*           parent_pointer,
     // Transfer the input image_memory_should_not_be_deallocated
 };
 
-void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, float c_pixel, float c_defocus, int threadIDX, long& current_correlation_position) {
+void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, float c_pixel, float c_defocus, int threadIDX, long& current_correlation_position
+#ifdef SINOGRAM_PSI_ALIGNMENT
+                                        ,
+                                        std::vector<float>& psi_adjust
+#endif
+) {
 
     // This should probably just be a unique pointer and not a vector
     if ( my_dist.empty( ) )
@@ -150,6 +155,12 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, float c_pixel,
     __half* d_phi_array;
     __half* ccf_array;
 
+#ifdef SINOGRAM_PSI_ALIGNMENT
+    float* d_psi_adjust;
+    cudaErr(cudaMallocAsync((void**)&d_psi_adjust, sizeof(float) * psi_adjust.size( ), cudaStreamPerThread));
+    //cudaErr(cudaMemsetAsync(d_psi_adjust, 0, sizeof(float) * psi_adjust.size( ), cudaStreamPerThread));
+    cudaErr(cudaMemcpyAsync(d_psi_adjust, psi_adjust.data( ), sizeof(float) * psi_adjust.size( ), cudaMemcpyHostToDevice, cudaStreamPerThread));
+#endif
     if constexpr ( n_mips_to_process_at_once > 1 ) {
         psi_array   = new __half[n_mips_to_process_at_once];
         theta_array = new __half[n_mips_to_process_at_once];
@@ -206,11 +217,13 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, float c_pixel,
     projection_queue.RecordProjectionReadyBlockingHost(current_projection_idx, cudaStreamPerThread);
 
     for ( current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
-
         if ( current_search_position % 10 == 0 ) {
             wxPrintf("Starting position %d/ %d\n", current_search_position, last_search_position);
         }
-
+#ifdef SINOGRAM_PSI_ALIGNMENT
+        psi_start = psi_start + d_psi_adjust[current_search_position];
+        psi_max   = psi_max + d_psi_adjust[current_search_position];
+#endif
         for ( float current_psi = psi_start; current_psi <= psi_max; current_psi += psi_step ) {
 
             angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], current_psi, 0.0, 0.0);
