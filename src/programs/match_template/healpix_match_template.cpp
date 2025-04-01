@@ -540,8 +540,20 @@ bool MatchTemplateApp::DoCalculation( ) {
             global_euler_search.theta_max = 180.0f;
         }
     }
+    
+    // TODO: Instead of using a starfile, we would need to:
+    // 1) perform the heaplpix order to file of angles calculation
+    // 2) Put those angles into the list of search parameters 
+    // 3) Split the angles by pixel
+    for ( int counter = 0; counter < starfile_binning.number_of_lines; counter++ ) {
+        starfile_binning.ReadLine(orientations.data( ));
+        global_euler_search.list_of_search_parameters[counter][0] = orientations.at(0);
+        global_euler_search.list_of_search_parameters[counter][1] = orientations.at(1);
+        global_euler_search.list_of_search_parameters[counter][2] = orientations.at(2);
+    }
+    //Also could perform the calculations by changing this function
+    // global_euler_search.CalculateGridSearchPositions(false);
 
-    global_euler_search.CalculateGridSearchPositions(false);
 
     // for now, I am assuming the MTF has been applied already.
     // work out the filter to just whiten the image..
