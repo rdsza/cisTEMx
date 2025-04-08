@@ -543,8 +543,8 @@ bool MatchTemplateApp::DoCalculation( ) {
     }
 
     //psi_start = psi_step / 2.0 * global_random_number_generator.GetUniformRandom();
-    psi_start = 0.0f;
-    psi_max   = 360.0f;
+    // psi_start = 0.0f;
+    // psi_max   = 360.0f;
 
     //psi_step = 5;
 
@@ -689,6 +689,11 @@ bool MatchTemplateApp::DoCalculation( ) {
     if ( is_running_locally == true ) {
         my_progress = new ProgressBar(total_correlation_positions_per_thread);
     }
+     
+    int increment = 360/bin_num;
+    for (int bin = 0; bin<bin_num; bin++){
+        psi_start = bin*increment;
+        psi_max = (bin+1) * increment;
 
     //    wxPrintf("Starting job\n");
     for ( size_i = -myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i <= myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i++ ) {
@@ -807,10 +812,7 @@ bool MatchTemplateApp::DoCalculation( ) {
 
 #endif
             }
-            int increment = 360/bin_num;
-            for (int bin = 0; bin<bin_num; bin++){
-                psi_start = bin*increment;
-                psi_max = (bin+1) * increment;
+           
             for ( current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
                 //loop over each rotation angle
 
