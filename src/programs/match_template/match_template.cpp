@@ -926,9 +926,10 @@ bool MatchTemplateApp::DoCalculation( ) {
                     }
                 }
             }
-
-        //find scaled mip std::string my_string = std::to_string(my_int);];
         }
+    }
+        //find scaled mip std::string my_string = std::to_string(my_int);];
+        
         for ( pixel_counter = 0; pixel_counter < input_image.real_memory_allocated; pixel_counter++ ) {
                 correlation_pixel_sum[pixel_counter] /= float(total_correlation_positions);
                 correlation_pixel_sum_of_squares[pixel_counter] = correlation_pixel_sum_of_squares[pixel_counter] / float(total_correlation_positions) - powf(correlation_pixel_sum[pixel_counter], 2);
@@ -983,7 +984,7 @@ bool MatchTemplateApp::DoCalculation( ) {
                     }
                 std::string bin_number = std::to_string(bin);
                 mip_binning.QuickAndDirtyWriteSlice(mip_output_file.ToStdString( ) + bin_number, 1, pixel_size);
-            }
+            
         }
     
 
