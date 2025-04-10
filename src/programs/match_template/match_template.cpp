@@ -105,7 +105,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     float    in_plane_angular_step     = 0;
     bool     use_gpu_input             = false;
     int      max_threads               = 1; // Only used for the GPU code
-
+    int      bin_num                   = 1;
     UserInput* my_input = new UserInput("MatchTemplate", 1.00);
 
     input_search_images         = my_input->GetFilenameFromUser("Input images to be searched", "The input image stack, containing the images that should be searched", "image_stack.mrc", true);
@@ -141,6 +141,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     //    ctf_refinement = my_input->GetYesNoFromUser("Refine defocus", "Should the particle defocus be refined?", "No");
     particle_radius_angstroms = my_input->GetFloatFromUser("Mask radius for global search (A) (0.0 = max)", "Radius of a circular mask to be applied to the input images during global search", "0.0", 0.0);
     my_symmetry               = my_input->GetSymmetryFromUser("Template symmetry", "The symmetry of the template reconstruction", "C1");
+    bin_num                   = my_input->GetIntFromUser("Number of bins", "The number of bins the psi angles will be split into", "1", 1);
 #ifdef ENABLEGPU
     use_gpu_input = my_input->GetYesNoFromUser("Use GPU", "Offload expensive calcs to GPU", "No");
     max_threads   = my_input->GetIntFromUser("Max. threads to use for calculation", "when threading, what is the max threads to run", "1", 1);
@@ -164,7 +165,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 
     delete my_input;
 
-    my_current_job.ManualSetArguments("ttffffffffffifffffbfftttttttttftiiiitttfbi", input_search_images.ToUTF8( ).data( ),
+    my_current_job.ManualSetArguments("ttffffffffffifffffbfftttttttttftiiiitttfbii", input_search_images.ToUTF8( ).data( ),
                                       input_reconstruction.ToUTF8( ).data( ),
                                       pixel_size,
                                       voltage_kV,
@@ -205,7 +206,8 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
                                       result_filename.ToUTF8( ).data( ),
                                       min_peak_radius,
                                       use_gpu_input,
-                                      max_threads);
+                                      max_threads,
+                                      bin_num);
 }
 
 // override the do calculation method which will be what is actually run..
@@ -263,6 +265,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     float    min_peak_radius                 = my_current_job.arguments[39].ReturnFloatArgument( );
     bool     use_gpu                         = my_current_job.arguments[40].ReturnBoolArgument( );
     int      max_threads                     = my_current_job.arguments[41].ReturnIntegerArgument( );
+    int      bin_num                         = my_current_job.arguments[42].ReturnIntegerArgument( );
 
     if ( is_running_locally == false )
         max_threads = number_of_threads_requested_on_command_line; // OVERRIDE FOR THE GUI, AS IT HAS TO BE SET ON THE COMMAND LINE...
@@ -354,12 +357,18 @@ bool MatchTemplateApp::DoCalculation( ) {
     Image projection_filter;
 
     Image max_intensity_projection;
+    Image mip_binning;
 
     Image best_psi;
+    Image binning_psi;
     Image best_theta;
+    Image binning_theta;
     Image best_phi;
+    Image binning_phi;
     Image best_defocus;
+    Image binning_defocus;
     Image best_pixel_size;
+    Image binning_pixel_size;
 
     Image correlation_pixel_sum_image;
     Image correlation_pixel_sum_of_squares_image;
@@ -462,6 +471,12 @@ bool MatchTemplateApp::DoCalculation( ) {
     best_phi.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     best_defocus.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     best_pixel_size.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    mip_binning.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    binning_psi.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    binning_theta.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    binning_phi.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    binning_defocus.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    binning_pixel_size.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     correlation_pixel_sum_image.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     correlation_pixel_sum_of_squares_image.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     double* correlation_pixel_sum            = new double[input_image.real_memory_allocated];
@@ -473,6 +488,11 @@ bool MatchTemplateApp::DoCalculation( ) {
     best_theta.SetToConstant(0.0f);
     best_phi.SetToConstant(0.0f);
     best_defocus.SetToConstant(0.0f);
+    mip_binning.SetToConstant(-FLT_MAX);
+    binning_psi.SetToConstant(0.0f);
+    binning_theta.SetToConstant(0.0f);
+    binning_phi.SetToConstant(0.0f);
+    binning_defocus.SetToConstant(0.0f);
 
     ZeroDoubleArray(correlation_pixel_sum, input_image.real_memory_allocated);
     ZeroDoubleArray(correlation_pixel_sum_of_squares, input_image.real_memory_allocated);
@@ -669,6 +689,11 @@ bool MatchTemplateApp::DoCalculation( ) {
     if ( is_running_locally == true ) {
         my_progress = new ProgressBar(total_correlation_positions_per_thread);
     }
+     
+    int increment = 360/bin_num;
+    for (int bin = 0; bin<bin_num; bin++){
+        psi_start = bin*increment;
+        psi_max = (bin+1) * increment;
 
     //    wxPrintf("Starting job\n");
     for ( size_i = -myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i <= myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i++ ) {
@@ -787,7 +812,7 @@ bool MatchTemplateApp::DoCalculation( ) {
 
 #endif
             }
-
+           
             for ( current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
                 //loop over each rotation angle
 
@@ -901,8 +926,66 @@ bool MatchTemplateApp::DoCalculation( ) {
                     }
                 }
             }
+
+        //find scaled mip std::string my_string = std::to_string(my_int);];
         }
-    }
+        for ( pixel_counter = 0; pixel_counter < input_image.real_memory_allocated; pixel_counter++ ) {
+                correlation_pixel_sum[pixel_counter] /= float(total_correlation_positions);
+                correlation_pixel_sum_of_squares[pixel_counter] = correlation_pixel_sum_of_squares[pixel_counter] / float(total_correlation_positions) - powf(correlation_pixel_sum[pixel_counter], 2);
+                if ( correlation_pixel_sum_of_squares[pixel_counter] > 0.0f ) {
+                    correlation_pixel_sum_of_squares[pixel_counter] = sqrtf(correlation_pixel_sum_of_squares[pixel_counter]) * (float)sqrt_input_pixels;
+                }
+                else
+                    correlation_pixel_sum_of_squares[pixel_counter] = 0.0f;
+                correlation_pixel_sum[pixel_counter] *= (float)sqrt_input_pixels;
+        }
+
+        max_intensity_projection.MultiplyByConstant((float)sqrt_input_pixels);
+         for ( pixel_counter = 0; pixel_counter < input_image.real_memory_allocated; pixel_counter++ ) {
+            max_intensity_projection.real_values[pixel_counter] -= correlation_pixel_sum[pixel_counter];
+            if ( correlation_pixel_sum_of_squares[pixel_counter] > 0.0f ) {
+                max_intensity_projection.real_values[pixel_counter] /= correlation_pixel_sum_of_squares[pixel_counter];
+            }
+            else
+                max_intensity_projection.real_values[pixel_counter] = 0.0f;
+            correlation_pixel_sum_image.real_values[pixel_counter]            = correlation_pixel_sum[pixel_counter];
+            correlation_pixel_sum_of_squares_image.real_values[pixel_counter] = correlation_pixel_sum_of_squares[pixel_counter];
+        }
+                    //Update final mip
+                    for ( current_y = 0; current_y < max_intensity_projection.logical_y_dimension; current_y++ ) {
+                        for ( current_x = 0; current_x < max_intensity_projection.logical_x_dimension; current_x++ ) {
+                            // first mip
+
+                            if ( max_intensity_projection.real_values[pixel_counter] > mip_binning.real_values[pixel_counter] ) {
+                                mip_binning.real_values[pixel_counter] = max_intensity_projection.real_values[pixel_counter];
+                                binning_psi.real_values[pixel_counter]                 = best_psi.real_values[pixel_counter] ;    
+                                binning_theta.real_values[pixel_counter]               = best_theta.real_values[pixel_counter];  
+                                binning_phi.real_values[pixel_counter]                 = best_phi.real_values[pixel_counter];
+                                binning_defocus.real_values[pixel_counter]             = best_defocus.real_values[pixel_counter];
+                                binning_pixel_size.real_values[pixel_counter]          = best_pixel_size.real_values[pixel_counter];
+                                //                                if (size_i != 0) wxPrintf("size_i = %i\n", size_i);
+                                //                                correlation_pixel_sum[pixel_counter] = variance;
+                            }
+
+                            // histogram
+
+                            current_bin = int(double((padded_reference.real_values[pixel_counter]) - histogram_min_scaled) / histogram_step_scaled);
+                            //current_bin = int(double((padded_reference.real_values[pixel_counter]) - histogram_min) / histogram_step);
+
+                            if ( current_bin >= 0 && current_bin <= histogram_number_of_points ) {
+                                histogram_data[current_bin] += 1;
+                            }
+
+                            pixel_counter++;
+                        }
+
+                        pixel_counter += padded_reference.padding_jump_value;
+                    }
+                std::string bin_number = std::to_string(bin);
+                mip_binning.QuickAndDirtyWriteSlice(mip_output_file.ToStdString( ) + bin_number, 1, pixel_size);
+            }
+        }
+    
 
     wxPrintf("\n\n\tTimings: Overall: %s\n", (wxDateTime::Now( ) - overall_start).Format( ));
 
@@ -945,6 +1028,17 @@ bool MatchTemplateApp::DoCalculation( ) {
             correlation_pixel_sum[pixel_counter]            = (double)correlation_pixel_sum_image.real_values[pixel_counter];
             correlation_pixel_sum_of_squares[pixel_counter] = (double)correlation_pixel_sum_of_squares_image.real_values[pixel_counter];
         }
+         for ( pixel_counter = 0; pixel_counter < input_image.real_memory_allocated; pixel_counter++ ) {
+            max_intensity_projection.real_values[pixel_counter] -= correlation_pixel_sum[pixel_counter];
+            if ( correlation_pixel_sum_of_squares[pixel_counter] > 0.0f ) {
+                max_intensity_projection.real_values[pixel_counter] /= correlation_pixel_sum_of_squares[pixel_counter];
+            }
+            else
+                max_intensity_projection.real_values[pixel_counter] = 0.0f;
+            correlation_pixel_sum_image.real_values[pixel_counter]            = correlation_pixel_sum[pixel_counter];
+            correlation_pixel_sum_of_squares_image.real_values[pixel_counter] = correlation_pixel_sum_of_squares[pixel_counter];
+        }
+
     }
 
     if ( is_running_locally == true ) {
