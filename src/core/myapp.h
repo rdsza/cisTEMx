@@ -168,6 +168,8 @@ class
     bool is_running_locally;
     int  number_of_threads_requested_on_command_line;
 
+    int number_of_psi_bins;
+
     bool i_am_the_master;
     bool i_am_a_worker;
 

@@ -689,7 +689,9 @@ bool MatchTemplateApp::DoCalculation( ) {
     if ( is_running_locally == true ) {
         my_progress = new ProgressBar(total_correlation_positions_per_thread);
     }
-     
+    wxPrintf("Number of psi bins = %d", bin_num);
+    wxPrintf("Number of psi bins = %d", number_of_psi_bins);
+    bin_num = number_of_psi_bins;
     int increment = 360/bin_num;
     for (int bin = 0; bin<bin_num; bin++){
         psi_start = bin*increment;

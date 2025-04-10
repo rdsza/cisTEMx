@@ -66,6 +66,7 @@ void MyApp::OnEventLoopEnter(wxEventLoopBase* loop) {
         int  number_of_arguments;
         int  counter;
         long temp_long;
+        long temp_psi_bins;
 
         wxString      current_address;
         wxArrayString possible_controller_addresses;
@@ -90,6 +91,7 @@ void MyApp::OnEventLoopEnter(wxEventLoopBase* loop) {
         command_line_parser.AddParam("controller_port", wxCMD_LINE_VAL_NUMBER, wxCMD_LINE_PARAM_OPTIONAL);
         command_line_parser.AddParam("job_code", wxCMD_LINE_VAL_STRING, wxCMD_LINE_PARAM_OPTIONAL);
         command_line_parser.AddParam("wanted_number_of_threads", wxCMD_LINE_VAL_NUMBER, wxCMD_LINE_PARAM_OPTIONAL);
+        command_line_parser.AddParam("Number of inplane bins", wxCMD_LINE_VAL_NUMBER, wxCMD_LINE_PARAM_OPTIONAL);
 
         // Let the app add options
         AddCommandLineOptions( );
@@ -118,7 +120,7 @@ void MyApp::OnEventLoopEnter(wxEventLoopBase* loop) {
             fftwf_cleanup( ); // this is needed to stop valgrind reporting memory leaks..
             exit(0);
         }
-        else if ( number_of_arguments != 4 ) {
+        else if ( number_of_arguments != 5 ) {
             command_line_parser.Usage( );
             wxPrintf("\n\n");
             ExitMainLoop( );
@@ -157,7 +159,12 @@ void MyApp::OnEventLoopEnter(wxEventLoopBase* loop) {
             MyPrintWithDetails(" Error: No. of Threads (%s) - not recognized as a number\n\n", command_line_parser.GetParam(3));
             exit(-1);
         }
+        if ( command_line_parser.GetParam(4).ToLong(&temp_psi_bins) == false ) {
+            MyPrintWithDetails(" Error: No. of inplane bins (%s) - not recognized as a number\n\n", command_line_parser.GetParam(4));
+            exit(-1);
+        }
 
+        number_of_psi_bins = int(temp_psi_bins); 
         number_of_threads_requested_on_command_line = temp_long;
         if ( number_of_threads_requested_on_command_line < 1 )
             number_of_threads_requested_on_command_line = 1;
