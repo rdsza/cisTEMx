@@ -954,11 +954,12 @@ bool MatchTemplateApp::DoCalculation( ) {
             correlation_pixel_sum_image.real_values[pixel_counter]            = correlation_pixel_sum[pixel_counter];
             correlation_pixel_sum_of_squares_image.real_values[pixel_counter] = correlation_pixel_sum_of_squares[pixel_counter];
         }
+        pixel_counter = 0;
                     //Update final mip
                     for ( current_y = 0; current_y < max_intensity_projection.logical_y_dimension; current_y++ ) {
                         for ( current_x = 0; current_x < max_intensity_projection.logical_x_dimension; current_x++ ) {
                             // first mip
-
+                           // wxPrintf("here");
                             if ( max_intensity_projection.real_values[pixel_counter] > mip_binning.real_values[pixel_counter] ) {
                                 mip_binning.real_values[pixel_counter] = max_intensity_projection.real_values[pixel_counter];
                                 binning_psi.real_values[pixel_counter]                 = best_psi.real_values[pixel_counter] ;    
@@ -985,9 +986,29 @@ bool MatchTemplateApp::DoCalculation( ) {
                         pixel_counter += padded_reference.padding_jump_value;
                     }
                 std::string bin_number = std::to_string(bin+1);
-                mip_binning.QuickAndDirtyWriteSlice(bin_number + "_" +mip_output_file.ToStdString( ) , 1, pixel_size);
+                temp_image.CopyFrom(&mip_binning);
+                temp_image.Resize(original_input_image_x, original_input_image_y, 1, mip_binning.ReturnAverageOfRealValuesOnEdges( ));
+                //temp_image.QuickAndDirtyWriteSlice(mip_output_file.ToStdString( ), 1, pixel_size);
+                temp_image.QuickAndDirtyWriteSlice(bin_number + "_" +mip_output_file.ToStdString( ) , 1, pixel_size);
+                binning_psi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+                binning_psi.QuickAndDirtyWriteSlice(bin_number + "_" +best_psi_output_file.ToStdString( ), 1, pixel_size);
+                binning_psi.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
+                binning_theta.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+                binning_theta.QuickAndDirtyWriteSlice(bin_number + "_" +best_theta_output_file.ToStdString( ), 1, pixel_size);
+                binning_theta.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
+                binning_phi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+                binning_phi.QuickAndDirtyWriteSlice(bin_number + "_" +best_phi_output_file.ToStdString( ), 1, pixel_size);
+                binning_phi.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
+                binning_defocus.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+                binning_defocus.QuickAndDirtyWriteSlice(bin_number + "_" +best_defocus_output_file.ToStdString( ), 1, pixel_size);
+                binning_defocus.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
+                binning_pixel_size.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+                binning_pixel_size.QuickAndDirtyWriteSlice(bin_number + "_" +best_pixel_size_output_file.ToStdString( ), 1, pixel_size);
+                binning_pixel_size.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
+
             
         }
+        max_intensity_projection.CopyFrom(&mip_binning);
     
 
     wxPrintf("\n\n\tTimings: Overall: %s\n", (wxDateTime::Now( ) - overall_start).Format( ));
@@ -1135,16 +1156,16 @@ bool MatchTemplateApp::DoCalculation( ) {
         correlation_pixel_sum_image.QuickAndDirtyWriteSlice(correlation_avg_output_file.ToStdString( ), 1, pixel_size);
         correlation_pixel_sum_of_squares_image.Resize(original_input_image_x, original_input_image_y, 1, correlation_pixel_sum_of_squares_image.ReturnAverageOfRealValuesOnEdges( ));
         correlation_pixel_sum_of_squares_image.QuickAndDirtyWriteSlice(correlation_std_output_file.ToStdString( ), 1, pixel_size);
-        best_psi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-        best_psi.QuickAndDirtyWriteSlice(best_psi_output_file.ToStdString( ), 1, pixel_size);
-        best_theta.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-        best_theta.QuickAndDirtyWriteSlice(best_theta_output_file.ToStdString( ), 1, pixel_size);
-        best_phi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-        best_phi.QuickAndDirtyWriteSlice(best_phi_output_file.ToStdString( ), 1, pixel_size);
-        best_defocus.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-        best_defocus.QuickAndDirtyWriteSlice(best_defocus_output_file.ToStdString( ), 1, pixel_size);
-        best_pixel_size.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-        best_pixel_size.QuickAndDirtyWriteSlice(best_pixel_size_output_file.ToStdString( ), 1, pixel_size);
+        binning_psi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+        binning_psi.QuickAndDirtyWriteSlice(best_psi_output_file.ToStdString( ), 1, pixel_size);
+        binning_theta.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+        binning_theta.QuickAndDirtyWriteSlice(best_theta_output_file.ToStdString( ), 1, pixel_size);
+        binning_phi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+        binning_phi.QuickAndDirtyWriteSlice(best_phi_output_file.ToStdString( ), 1, pixel_size);
+        binning_defocus.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+        binning_defocus.QuickAndDirtyWriteSlice(best_defocus_output_file.ToStdString( ), 1, pixel_size);
+        binning_pixel_size.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+        binning_pixel_size.QuickAndDirtyWriteSlice(best_pixel_size_output_file.ToStdString( ), 1, pixel_size);
 
         // write out histogram..
 
