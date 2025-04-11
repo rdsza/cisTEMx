@@ -984,8 +984,8 @@ bool MatchTemplateApp::DoCalculation( ) {
 
                         pixel_counter += padded_reference.padding_jump_value;
                     }
-                std::string bin_number = std::to_string(bin);
-                mip_binning.QuickAndDirtyWriteSlice(mip_output_file.ToStdString( ) + bin_number, 1, pixel_size);
+                std::string bin_number = std::to_string(bin+1);
+                mip_binning.QuickAndDirtyWriteSlice(bin_number + "_" +mip_output_file.ToStdString( ) , 1, pixel_size);
             
         }
     
