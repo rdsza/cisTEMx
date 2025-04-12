@@ -471,12 +471,14 @@ bool MatchTemplateApp::DoCalculation( ) {
     best_phi.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     best_defocus.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     best_pixel_size.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
-    mip_binning.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
-    binning_psi.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
-    binning_theta.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
-    binning_phi.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
-    binning_defocus.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
-    binning_pixel_size.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    
+    //mip_binning.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    //binning_psi.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    //binning_theta.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    //binning_phi.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    //binning_defocus.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+    //binning_pixel_size.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+
     correlation_pixel_sum_image.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     correlation_pixel_sum_of_squares_image.Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
     double* correlation_pixel_sum            = new double[input_image.real_memory_allocated];
@@ -488,14 +490,24 @@ bool MatchTemplateApp::DoCalculation( ) {
     best_theta.SetToConstant(0.0f);
     best_phi.SetToConstant(0.0f);
     best_defocus.SetToConstant(0.0f);
-    mip_binning.SetToConstant(-FLT_MAX);
-    binning_psi.SetToConstant(0.0f);
-    binning_theta.SetToConstant(0.0f);
-    binning_phi.SetToConstant(0.0f);
-    binning_defocus.SetToConstant(0.0f);
+    
+    //mip_binning.SetToConstant(-FLT_MAX);
+    //binning_psi.SetToConstant(0.0f);
+    //binning_theta.SetToConstant(0.0f);
+    //binning_phi.SetToConstant(0.0f);
+    //binning_defocus.SetToConstant(0.0f);
 
-    ZeroDoubleArray(correlation_pixel_sum, input_image.real_memory_allocated);
-    ZeroDoubleArray(correlation_pixel_sum_of_squares, input_image.real_memory_allocated);
+    // Doing this in the bin loop
+    //ZeroDoubleArray(correlation_pixel_sum, input_image.real_memory_allocated);
+    //ZeroDoubleArray(correlation_pixel_sum_of_squares, input_image.real_memory_allocated);
+
+    // Create arrays to store results for each bin
+    Image* bin_mip = new Image[bin_num];
+    Image* bin_psi = new Image[bin_num];
+    Image* bin_theta = new Image[bin_num];
+    Image* bin_phi = new Image[bin_num];
+    Image* bin_defocus = new Image[bin_num];
+    Image* bin_pixel_size = new Image[bin_num];
 
     sqrt_input_pixels = sqrt((double)(input_image.logical_x_dimension * input_image.logical_y_dimension));
 
@@ -542,26 +554,6 @@ bool MatchTemplateApp::DoCalculation( ) {
         psi_step = in_plane_angular_step;
     }
 
-    //psi_start = psi_step / 2.0 * global_random_number_generator.GetUniformRandom();
-    psi_start = 0.0f;
-    psi_max   = 360.0f;
-
-    //psi_step = 5;
-
-    //wxPrintf("psi_start = %f, psi_max = %f, psi_step = %f\n", psi_start, psi_max, psi_step);
-
-    // search grid
-
-    global_euler_search.InitGrid(my_symmetry, angular_step, 0.0f, 0.0f, psi_max, psi_step, psi_start, pixel_size / high_resolution_limit_search, parameter_map, best_parameters_to_keep);
-    if ( my_symmetry.StartsWith("C") ) // TODO 2x check me - w/o this O symm at least is broken
-    {
-        if ( global_euler_search.test_mirror == true ) // otherwise the theta max is set to 90.0 and test_mirror is set to true.  However, I don't want to have to test the mirrors.
-        {
-            global_euler_search.theta_max = 180.0f;
-        }
-    }
-
-    global_euler_search.CalculateGridSearchPositions(false);
 
     // for now, I am assuming the MTF has been applied already.
     // work out the filter to just whiten the image..
@@ -592,6 +584,78 @@ bool MatchTemplateApp::DoCalculation( ) {
     //input_image.QuickAndDirtyWriteSlice("/tmp/white.mrc", 1);
     //exit(-1);
 
+    wxPrintf("\n\nNumber of in-plane bins = %d\n\n", bin_num);
+    //psi_start = psi_step / 2.0 * global_random_number_generator.GetUniformRandom();
+    psi_start = 0.0f;
+    psi_max   = 360.0f;
+
+    //psi_step = 5;
+
+    //wxPrintf("psi_start = %f, psi_max = %f, psi_step = %f\n", psi_start, psi_max, psi_step);
+    // wxPrintf("Number of psi bins = %d", number_of_psi_bins);
+    // bin_num = number_of_psi_bins;
+    int increment = 360/bin_num;
+    
+    // Move these declarations outside the binning loop to fix scope issues
+    wxDateTime overall_start;
+    wxDateTime overall_finish;
+    ProgressBar* my_progress = nullptr;
+    
+    for (int bin = 0; bin<bin_num; bin++){
+        psi_start = bin*increment;
+        psi_max = (bin+1) * increment;
+        wxPrintf("\npsi_start = %f, psi_max = %f, psi_step = %f\n", psi_start, psi_max, psi_step);
+
+        // Allocate
+        bin_mip[bin].Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+        bin_mip[bin].SetToConstant(-FLT_MAX);
+        bin_psi[bin].Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+        bin_psi[bin].SetToConstant(0.0f);
+        bin_theta[bin].Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+        bin_theta[bin].SetToConstant(0.0f);
+        bin_phi[bin].Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+        bin_phi[bin].SetToConstant(0.0f);
+        bin_defocus[bin].Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+        bin_defocus[bin].SetToConstant(0.0f);
+        bin_pixel_size[bin].Allocate(input_image.logical_x_dimension, input_image.logical_y_dimension, 1);
+        bin_pixel_size[bin].SetToConstant(0.0f);
+
+        // Initialize overall_start at the beginning of the first bin
+        if (bin == 0) {
+            overall_start = wxDateTime::Now();
+        }
+        
+        // Reset histogram data for this bin
+        for (int counter = 0; counter < histogram_number_of_points; counter++) {
+            histogram_data[counter] = 0;
+        }
+        
+        // Reset correlation arrays for this bin
+        ZeroDoubleArray(correlation_pixel_sum, input_image.real_memory_allocated);
+        ZeroDoubleArray(correlation_pixel_sum_of_squares, input_image.real_memory_allocated);
+        
+        // Reset binning images for this bin
+        //mip_binning.SetToConstant(-FLT_MAX);
+        //binning_psi.SetToConstant(0.0f);
+        //binning_theta.SetToConstant(0.0f);
+        //binning_phi.SetToConstant(0.0f);
+        //binning_defocus.SetToConstant(0.0f);
+        //binning_pixel_size.SetToConstant(0.0f);
+        
+        // Progress bar will be initialized after total_correlation_positions_per_thread is set
+
+    // search grid
+
+    global_euler_search.InitGrid(my_symmetry, angular_step, 0.0f, 0.0f, psi_max, psi_step, psi_start, pixel_size / high_resolution_limit_search, parameter_map, best_parameters_to_keep);
+    if ( my_symmetry.StartsWith("C") ) // TODO 2x check me - w/o this O symm at least is broken
+    {
+        if ( global_euler_search.test_mirror == true ) // otherwise the theta max is set to 90.0 and test_mirror is set to true.  However, I don't want to have to test the mirrors.
+        {
+            global_euler_search.theta_max = 180.0f;
+        }
+    }
+
+    global_euler_search.CalculateGridSearchPositions(false);
     // count total searches (lazy)
 
     total_correlation_positions  = 0;
@@ -624,15 +688,22 @@ bool MatchTemplateApp::DoCalculation( ) {
     }
 
     total_correlation_positions *= (2 * myroundint(float(defocus_search_range) / float(defocus_step)) + 1);
+    total_correlation_positions *= (2 * myroundint(float(pixel_size_search_range) / float(pixel_size_step)) + 1);
     total_correlation_positions_per_thread = total_correlation_positions;
+
+    // Initialize progress bar if running locally
+    if (is_running_locally == true) {
+        if (my_progress != nullptr) {
+            delete my_progress;
+        }
+        my_progress = new ProgressBar(total_correlation_positions_per_thread);
+    }
 
     number_of_rotations = 0;
 
     for ( current_psi = psi_start; current_psi <= psi_max; current_psi += psi_step ) {
         number_of_rotations++;
     }
-
-    ProgressBar* my_progress;
 
     //Loop over ever search position
 
@@ -641,16 +712,12 @@ bool MatchTemplateApp::DoCalculation( ) {
     wxPrintf("Searching %i rotations per position.\n", number_of_rotations);
     wxPrintf("There are %li correlation positions total.\n\n", total_correlation_positions);
 
-    wxPrintf("Performing Search...\n\n");
+    wxPrintf("Performing Search for bin %i\n\n", bin);
 
     //    wxPrintf("Searching %i - %i of %i total positions\n", first_search_position, last_search_position, global_euler_search.number_of_search_positions);
     //    wxPrintf("psi_start = %f, psi_max = %f, psi_step = %f\n", psi_start, psi_max, psi_step);
 
     actual_number_of_ccs_calculated = 0.0;
-
-    wxDateTime overall_start;
-    wxDateTime overall_finish;
-    overall_start = wxDateTime::Now( );
 
     // These vars are only needed in the GPU code, but also need to be set out here to compile.
     bool first_gpu_loop = true;
@@ -686,16 +753,9 @@ bool MatchTemplateApp::DoCalculation( ) {
 #endif
     }
 
-    if ( is_running_locally == true ) {
+            if ( is_running_locally == true ) {
         my_progress = new ProgressBar(total_correlation_positions_per_thread);
     }
-    wxPrintf("Number of psi bins = %d", bin_num);
-    // wxPrintf("Number of psi bins = %d", number_of_psi_bins);
-    // bin_num = number_of_psi_bins;
-    int increment = 360/bin_num;
-    for (int bin = 0; bin<bin_num; bin++){
-        psi_start = bin*increment;
-        psi_max = (bin+1) * increment;
 
     //    wxPrintf("Starting job\n");
     for ( size_i = -myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i <= myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i++ ) {
@@ -870,17 +930,17 @@ bool MatchTemplateApp::DoCalculation( ) {
                     // update mip, and histogram..
                     pixel_counter = 0;
 
-                    for ( current_y = 0; current_y < max_intensity_projection.logical_y_dimension; current_y++ ) {
-                        for ( current_x = 0; current_x < max_intensity_projection.logical_x_dimension; current_x++ ) {
+                    for ( current_y = 0; current_y < bin_mip[bin].logical_y_dimension; current_y++ ) {
+                        for ( current_x = 0; current_x < bin_mip[bin].logical_x_dimension; current_x++ ) {
                             // first mip
 
-                            if ( padded_reference.real_values[pixel_counter] > max_intensity_projection.real_values[pixel_counter] ) {
-                                max_intensity_projection.real_values[pixel_counter] = padded_reference.real_values[pixel_counter];
-                                best_psi.real_values[pixel_counter]                 = current_psi;
-                                best_theta.real_values[pixel_counter]               = global_euler_search.list_of_search_parameters[current_search_position][1];
-                                best_phi.real_values[pixel_counter]                 = global_euler_search.list_of_search_parameters[current_search_position][0];
-                                best_defocus.real_values[pixel_counter]             = float(defocus_i) * defocus_step;
-                                best_pixel_size.real_values[pixel_counter]          = float(size_i) * pixel_size_step;
+                            if ( padded_reference.real_values[pixel_counter] > bin_mip[bin].real_values[pixel_counter] ) {
+                                bin_mip[bin].real_values[pixel_counter] = padded_reference.real_values[pixel_counter];
+                                bin_psi[bin].real_values[pixel_counter]                 = current_psi;
+                                bin_theta[bin].real_values[pixel_counter]               = global_euler_search.list_of_search_parameters[current_search_position][1];
+                                bin_phi[bin].real_values[pixel_counter]                 = global_euler_search.list_of_search_parameters[current_search_position][0];
+                                bin_defocus[bin].real_values[pixel_counter]             = float(defocus_i) * defocus_step;
+                                bin_pixel_size[bin].real_values[pixel_counter]          = float(size_i) * pixel_size_step;
                                 //                                if (size_i != 0) wxPrintf("size_i = %i\n", size_i);
                                 //                                correlation_pixel_sum[pixel_counter] = variance;
                             }
@@ -943,73 +1003,72 @@ bool MatchTemplateApp::DoCalculation( ) {
                 correlation_pixel_sum[pixel_counter] *= (float)sqrt_input_pixels;
         }
 
-        max_intensity_projection.MultiplyByConstant((float)sqrt_input_pixels);
+        bin_mip[bin].MultiplyByConstant((float)sqrt_input_pixels);
          for ( pixel_counter = 0; pixel_counter < input_image.real_memory_allocated; pixel_counter++ ) {
-            max_intensity_projection.real_values[pixel_counter] -= correlation_pixel_sum[pixel_counter];
+            bin_mip[bin].real_values[pixel_counter] -= correlation_pixel_sum[pixel_counter];
             if ( correlation_pixel_sum_of_squares[pixel_counter] > 0.0f ) {
-                max_intensity_projection.real_values[pixel_counter] /= correlation_pixel_sum_of_squares[pixel_counter];
+                bin_mip[bin].real_values[pixel_counter] /= correlation_pixel_sum_of_squares[pixel_counter];
             }
             else
-                max_intensity_projection.real_values[pixel_counter] = 0.0f;
+                bin_mip[bin].real_values[pixel_counter] = 0.0f;
             correlation_pixel_sum_image.real_values[pixel_counter]            = correlation_pixel_sum[pixel_counter];
             correlation_pixel_sum_of_squares_image.real_values[pixel_counter] = correlation_pixel_sum_of_squares[pixel_counter];
         }
-        pixel_counter = 0;
-                    //Update final mip
-                    for ( current_y = 0; current_y < max_intensity_projection.logical_y_dimension; current_y++ ) {
-                        for ( current_x = 0; current_x < max_intensity_projection.logical_x_dimension; current_x++ ) {
-                            // first mip
-                           // wxPrintf("here");
-                            if ( max_intensity_projection.real_values[pixel_counter] > mip_binning.real_values[pixel_counter] ) {
-                                mip_binning.real_values[pixel_counter] = max_intensity_projection.real_values[pixel_counter];
-                                binning_psi.real_values[pixel_counter]                 = best_psi.real_values[pixel_counter] ;    
-                                binning_theta.real_values[pixel_counter]               = best_theta.real_values[pixel_counter];  
-                                binning_phi.real_values[pixel_counter]                 = best_phi.real_values[pixel_counter];
-                                binning_defocus.real_values[pixel_counter]             = best_defocus.real_values[pixel_counter];
-                                binning_pixel_size.real_values[pixel_counter]          = best_pixel_size.real_values[pixel_counter];
-                                //                                if (size_i != 0) wxPrintf("size_i = %i\n", size_i);
-                                //                                correlation_pixel_sum[pixel_counter] = variance;
-                            }
-
-                            // histogram
-
-                            current_bin = int(double((padded_reference.real_values[pixel_counter]) - histogram_min_scaled) / histogram_step_scaled);
-                            //current_bin = int(double((padded_reference.real_values[pixel_counter]) - histogram_min) / histogram_step);
-
-                            if ( current_bin >= 0 && current_bin <= histogram_number_of_points ) {
-                                histogram_data[current_bin] += 1;
-                            }
-
-                            pixel_counter++;
-                        }
-
-                        pixel_counter += padded_reference.padding_jump_value;
-                    }
-                std::string bin_number = std::to_string(bin+1);
-                temp_image.CopyFrom(&mip_binning);
-                temp_image.Resize(original_input_image_x, original_input_image_y, 1, mip_binning.ReturnAverageOfRealValuesOnEdges( ));
-                //temp_image.QuickAndDirtyWriteSlice(mip_output_file.ToStdString( ), 1, pixel_size);
-                temp_image.QuickAndDirtyWriteSlice(bin_number + "_" +mip_output_file.ToStdString( ) , 1, pixel_size);
-                binning_psi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-                binning_psi.QuickAndDirtyWriteSlice(bin_number + "_" +best_psi_output_file.ToStdString( ), 1, pixel_size);
-                binning_psi.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
-                binning_theta.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-                binning_theta.QuickAndDirtyWriteSlice(bin_number + "_" +best_theta_output_file.ToStdString( ), 1, pixel_size);
-                binning_theta.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
-                binning_phi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-                binning_phi.QuickAndDirtyWriteSlice(bin_number + "_" +best_phi_output_file.ToStdString( ), 1, pixel_size);
-                binning_phi.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
-                binning_defocus.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-                binning_defocus.QuickAndDirtyWriteSlice(bin_number + "_" +best_defocus_output_file.ToStdString( ), 1, pixel_size);
-                binning_defocus.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
-                binning_pixel_size.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-                binning_pixel_size.QuickAndDirtyWriteSlice(bin_number + "_" +best_pixel_size_output_file.ToStdString( ), 1, pixel_size);
-                binning_pixel_size.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
-
-            
+        
+        //std::string bin_number = std::to_string(bin+1);
+                // temp_image.CopyFrom(&mip_binning);
+                // temp_image.Resize(original_input_image_x, original_input_image_y, 1, mip_binning.ReturnAverageOfRealValuesOnEdges( ));
+                // //temp_image.QuickAndDirtyWriteSlice(mip_output_file.ToStdString( ), 1, pixel_size);
+                // temp_image.QuickAndDirtyWriteSlice(bin_number + "_" +mip_output_file.ToStdString( ) , 1, pixel_size);
+                // binning_psi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+                // binning_psi.QuickAndDirtyWriteSlice(bin_number + "_" +best_psi_output_file.ToStdString( ), 1, pixel_size);
+                // binning_psi.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
+                // binning_theta.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+                // binning_theta.QuickAndDirtyWriteSlice(bin_number + "_" +best_theta_output_file.ToStdString( ), 1, pixel_size);
+                // binning_theta.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
+                // binning_phi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+                // binning_phi.QuickAndDirtyWriteSlice(bin_number + "_" +best_phi_output_file.ToStdString( ), 1, pixel_size);
+                // binning_phi.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
+                // binning_defocus.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+                // binning_defocus.QuickAndDirtyWriteSlice(bin_number + "_" +best_defocus_output_file.ToStdString( ), 1, pixel_size);
+                // binning_defocus.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);
+                // binning_pixel_size.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+                // binning_pixel_size.QuickAndDirtyWriteSlice(bin_number + "_" +best_pixel_size_output_file.ToStdString( ), 1, pixel_size);
+                // binning_pixel_size.Resize(input_image.logical_x_dimension, input_image.logical_y_dimension, 1, 0.0f);       
         }
        // max_intensity_projection.CopyFrom(&mip_binning);
-    
+       // Initialize max_intensity_projection with the first bin's values
+        max_intensity_projection.CopyFrom(&bin_mip[0]);
+        best_psi.CopyFrom(&bin_psi[0]);
+        best_theta.CopyFrom(&bin_theta[0]);
+        best_phi.CopyFrom(&bin_phi[0]);
+        best_defocus.CopyFrom(&bin_defocus[0]);
+        best_pixel_size.CopyFrom(&bin_pixel_size[0]);
+       for (int bin = 1; bin < bin_num; bin++) {
+        // Write out the bin_mip[bin]
+        //std::string bin_number = std::to_string(bin+1);
+        //bin_mip[bin].QuickAndDirtyWriteSlice(bin_number + "_" + mip_output_file.ToStdString( ), 1, pixel_size);
+            pixel_counter = 0;
+            //Update final mip
+            for ( current_y = 0; current_y < bin_mip[bin].logical_y_dimension; current_y++ ) {
+                for ( current_x = 0; current_x < bin_mip[bin].logical_x_dimension; current_x++ ) {
+                    // Compare with the current max_intensity_projection value
+                    if ( bin_mip[bin].real_values[pixel_counter] > max_intensity_projection.real_values[pixel_counter] ) {
+                        // Update the final MIP and parameters with the better values from this bin
+                        max_intensity_projection.real_values[pixel_counter] = bin_mip[bin].real_values[pixel_counter];
+                        best_psi.real_values[pixel_counter] = bin_psi[bin].real_values[pixel_counter];
+                        best_theta.real_values[pixel_counter] = bin_theta[bin].real_values[pixel_counter];
+                        best_phi.real_values[pixel_counter] = bin_phi[bin].real_values[pixel_counter];
+                        best_defocus.real_values[pixel_counter] = bin_defocus[bin].real_values[pixel_counter];
+                        best_pixel_size.real_values[pixel_counter] = bin_pixel_size[bin].real_values[pixel_counter];
+                    }
+
+                    pixel_counter++;
+                }
+
+                pixel_counter += padded_reference.padding_jump_value;
+            }
+        }
 
     wxPrintf("\n\n\tTimings: Overall: %s\n", (wxDateTime::Now( ) - overall_start).Format( ));
 
@@ -1066,7 +1125,10 @@ bool MatchTemplateApp::DoCalculation( ) {
     }
 
     if ( is_running_locally == true ) {
-        delete my_progress;
+        if (my_progress != nullptr) {
+            delete my_progress;
+            my_progress = nullptr;
+        }
 
         // scale images..
 
@@ -1134,9 +1196,9 @@ bool MatchTemplateApp::DoCalculation( ) {
         //        wxPrintf("\nPeak at %g, %g : %g\n", max_intensity_projection.FindPeakWithIntegerCoordinates().x, max_intensity_projection.FindPeakWithIntegerCoordinates().y, max_intensity_projection.FindPeakWithIntegerCoordinates().value);
         //        wxPrintf("Sigma = %g, ratio = %g\n", sqrtf(max_intensity_projection.ReturnVarianceOfRealValues()), max_intensity_projection.FindPeakWithIntegerCoordinates().value / sqrtf(max_intensity_projection.ReturnVarianceOfRealValues()));
 
-        temp_image.CopyFrom(&mip_binning);
-        temp_image.Resize(original_input_image_x, original_input_image_y, 1, temp_image.ReturnAverageOfRealValuesOnEdges( ));
-        temp_image.QuickAndDirtyWriteSlice(mip_output_file.ToStdString( ), 1, pixel_size);
+        // temp_image.CopyFrom(&mip_binning);
+        // temp_image.Resize(original_input_image_x, original_input_image_y, 1, temp_image.ReturnAverageOfRealValuesOnEdges( ));
+        // temp_image.QuickAndDirtyWriteSlice(mip_output_file.ToStdString( ), 1, pixel_size);
         //        max_intensity_projection.SubtractImage(&correlation_pixel_sum);
         // for ( pixel_counter = 0; pixel_counter < input_image.real_memory_allocated; pixel_counter++ ) {
         //     max_intensity_projection.real_values[pixel_counter] -= correlation_pixel_sum[pixel_counter];
@@ -1149,23 +1211,23 @@ bool MatchTemplateApp::DoCalculation( ) {
         //     correlation_pixel_sum_of_squares_image.real_values[pixel_counter] = correlation_pixel_sum_of_squares[pixel_counter];
         // }
         //        max_intensity_projection.DividePixelWise(correlation_pixel_sum_of_squares);
-        // mip_binning.Resize(original_input_image_x, original_input_image_y, 1, max_intensity_projection.ReturnAverageOfRealValuesOnEdges( ));
-        // mip_binning.QuickAndDirtyWriteSlice(scaled_mip_output_file.ToStdString( ), 1, pixel_size);
+        max_intensity_projection.Resize(original_input_image_x, original_input_image_y, 1, max_intensity_projection.ReturnAverageOfRealValuesOnEdges( ));
+        max_intensity_projection.QuickAndDirtyWriteSlice(scaled_mip_output_file.ToStdString( ), 1, pixel_size);
 
         correlation_pixel_sum_image.Resize(original_input_image_x, original_input_image_y, 1, correlation_pixel_sum_image.ReturnAverageOfRealValuesOnEdges( ));
         correlation_pixel_sum_image.QuickAndDirtyWriteSlice(correlation_avg_output_file.ToStdString( ), 1, pixel_size);
         correlation_pixel_sum_of_squares_image.Resize(original_input_image_x, original_input_image_y, 1, correlation_pixel_sum_of_squares_image.ReturnAverageOfRealValuesOnEdges( ));
         correlation_pixel_sum_of_squares_image.QuickAndDirtyWriteSlice(correlation_std_output_file.ToStdString( ), 1, pixel_size);
-        binning_psi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-        binning_psi.QuickAndDirtyWriteSlice(best_psi_output_file.ToStdString( ), 1, pixel_size);
-        binning_theta.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-        binning_theta.QuickAndDirtyWriteSlice(best_theta_output_file.ToStdString( ), 1, pixel_size);
-        binning_phi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-        binning_phi.QuickAndDirtyWriteSlice(best_phi_output_file.ToStdString( ), 1, pixel_size);
-        binning_defocus.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-        binning_defocus.QuickAndDirtyWriteSlice(best_defocus_output_file.ToStdString( ), 1, pixel_size);
-        binning_pixel_size.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
-        binning_pixel_size.QuickAndDirtyWriteSlice(best_pixel_size_output_file.ToStdString( ), 1, pixel_size);
+        best_psi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+        best_psi.QuickAndDirtyWriteSlice(best_psi_output_file.ToStdString( ), 1, pixel_size);
+        best_theta.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+        best_theta.QuickAndDirtyWriteSlice(best_theta_output_file.ToStdString( ), 1, pixel_size);
+        best_phi.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+        best_phi.QuickAndDirtyWriteSlice(best_phi_output_file.ToStdString( ), 1, pixel_size);
+        best_defocus.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+        best_defocus.QuickAndDirtyWriteSlice(best_defocus_output_file.ToStdString( ), 1, pixel_size);
+        best_pixel_size.Resize(original_input_image_x, original_input_image_y, 1, 0.0f);
+        best_pixel_size.QuickAndDirtyWriteSlice(best_pixel_size_output_file.ToStdString( ), 1, pixel_size);
 
         // write out histogram..
 
